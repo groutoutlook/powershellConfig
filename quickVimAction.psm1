@@ -103,6 +103,7 @@ $sessionMap = @{
     "es"  = "espanso"
     "ob"  = "obsidian"
     "m"   = "mouse"
+    "k"   = "kanata"
     "ka"  = "kanata"
     "vk"  = "vulkan-samples"
     "wts" = "wt_shader"

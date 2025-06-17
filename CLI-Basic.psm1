@@ -73,13 +73,13 @@ function Invoke-SudoPwsh {
 # INFO: mousemaster or something related to mouse controlling
 function Invoke-KeyMouse {
     Invoke-SudoPwsh "Stop-Process -Name mousemaster*"
-    Invoke-SudoPwsh "Stop-Process -Name kanata*"
+    # Invoke-SudoPwsh "Stop-Process -Name kanata*"
     Push-Location
     if ($args.Length -ne 1) {
         Start-Sleep -Seconds 1 
         Set-LocationWhere mousemaster
         sudo run mousemaster &
-        sudo run D:\ProgramDataD\MiscLang\07.02-Rust\nightly\kanata\target\release\kanata.exe -p 127.0.0.1:4039
+        # sudo run D:\ProgramDataD\MiscLang\07.02-Rust\nightly\kanata\target\release\kanata.exe -p 127.0.0.1:4039
         # sudo run kanata -p 127.0.0.1:4039
         # sudo run kanata &
     }
@@ -202,14 +202,14 @@ function f() {
 
 # HACK: `lsd` and `ls` to `exa`
 function lsd {
-    exa --hyperlink --icons=always $args 
+    eza --hyperlink --icons=always $args 
 }
 Set-Alias -Name ls -Value lsd -Scope Global -Option AllScope
 
 # TODO: check if there are more than the default level (-L=2) of nesting directory.
 # NOTE: and echo it? 
 function tree() {
-    exa --hyperlink -T -L=2 $args 
+    eza --hyperlink -T -L=2 $args 
     Write-Host "depth flags : -L=2" -ForegroundColor Green
 }
 

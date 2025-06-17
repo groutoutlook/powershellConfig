@@ -171,10 +171,10 @@ function Set-LocationSymLink($currentPath = (Get-Location)) {
     $currentPath = Resolve-Path $currentPath
     if (($targetDir = isLink($currentPath)) -ne $null) {
         $pathProperty = Get-ItemProperty $targetDir
-        if( $pathProperty.Attributes -contains "Directory") {
+        if ( $pathProperty.Attributes -contains "Directory") {
             Set-Location $targetDir
         }
-        else{
+        else {
             Set-Location (Split-Path $targetDir -Parent)
         }
     }

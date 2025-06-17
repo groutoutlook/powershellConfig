@@ -10,8 +10,8 @@ $ggSearchParameters = @{
         param($key, $arg)
         $line = $null
         $cursor = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
-            [ref]$cursor)
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        
         $searchFunction = "Search-DuckDuckGo" 
         $SearchWithQuery = ""
         if ($line -match "[a-z]") {
@@ -20,6 +20,12 @@ $ggSearchParameters = @{
         else {
             $SearchWithQuery = "$searchFunction $(Get-History -Count 1)"
         }
+
+        $process_string = {
+        param($line)
+
+        }
+
         [Microsoft.PowerShell.PSConsoleReadLine]::AddToHistory($line)
         Invoke-Expression $SearchWithQuery
     }
@@ -672,6 +678,72 @@ $ExtraKillWord1Parameters = @{
 
 
 
+$helpParameter = @{
+    Key              = 'ctrl+b'
+    BriefDescription = 'help'
+    LongDescription  = 'As brief.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        
+        if ($line.Length -eq 0) {
+            $line = "$((Get-History -Count 1).CommandLine)"
+            $cursor = $null
+        }
+
+        $pipeAll = "*>&1 | b"
+        $mundaneHelpPattern = "help $pipeAll"
+        $otherhelppattern = "--help $pipeAll"
+        $helpPattern = "-h $pipeAll"
+        $plainPipe = "\|\s*?b"
+
+        switch ($line) {
+            { $_.EndsWith($helpPattern) -eq $true } {
+                $finalString = $_.Replace($helpPattern, $otherHelpPattern)
+                break
+            }
+            { $_.EndsWith($otherHelpPattern) -eq $true } {
+                $finalString = $_.Replace($otherHelpPattern, $mundaneHelpPattern)
+                break
+            }            
+            { $_.EndsWith($mundaneHelpPattern) -eq $true } {
+                $finalString = $_.Replace($mundaneHelpPattern, $helpPattern)
+                break
+            }
+            { $_.EndsWith($pipeAll) -eq $true } {
+                $finalString = $_.Replace($pipeAll, "| b")
+                break
+            }
+            { $_ -match $plainPipe } {
+                $finalString = $_ | Select-String -Pattern $plainPipe | % { $_.Line.replace($_.Matches.Value, $pipeAll) }
+            }
+            default {
+                $finalString = $_ + " $helpPattern"
+            }
+        }
+
+        if ($null -ne $cursor) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, "$finalString")
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($line.Length - 1)
+        }
+        else {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($finalString)
+        }
+        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+        if ($?) {
+            Write-Host "nope."
+        }
+    }
+}
+
+
 $MathExpressionParameter = @{
     Key              = 'Alt+m'
     BriefDescription = 'parentheses the selection'
@@ -1011,6 +1083,7 @@ $HandlerParameters = @(
     , $openEditorParameters
     , $GlobalEditorSwitch
     , $MathExpressionParameter
+    , $helpParameter
 )
 # INFO: Unique for Vi mode.
 $ViHandlerParameters = @(

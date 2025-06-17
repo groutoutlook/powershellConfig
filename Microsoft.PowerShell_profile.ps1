@@ -47,7 +47,7 @@ $global:extraModuleList = @(
 )
 
 $global:scriptingModuleList=@(
-	"PSTimers"
+	# "PSTimers"
 	# and some more.
 )
 
