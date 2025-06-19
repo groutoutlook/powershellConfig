@@ -208,4 +208,19 @@ function tree() {
 }
 
 Set-Alias -Name nc -Value ncat -Scope Global -Option AllScope
+function ncput(
+    [String]$content = (Get-Clipboard),
+    $netAddress = "192.168.1.42",
+    $defaultPort = 9001
+) {
+    $content | % { $_ | ncat $netAddress $defaultPort -w 20s
+        echo "Done sent $_"
+    }
+}
+function ncget(
+    $defaultPort = 9001
+) {
+    ncat -l $defaultPort
+}
+
 Set-Alias -Name bc -Value fend -Scope Global -Option AllScope
