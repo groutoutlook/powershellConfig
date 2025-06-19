@@ -72,10 +72,11 @@ function Invoke-SudoPwsh {
 }
 # INFO: mousemaster or something related to mouse controlling
 function Invoke-KeyMouse {
-    Invoke-SudoPwsh "Stop-Process -Name mousemaster*"
     if ($args.Length -ne 1) {
-        Start-Sleep -Seconds 1 
-        sudo run mousemaster --configuration-file=D:\usr\bin\mousemaster.properties &
+        sudo run pwsh -Command "Stop-Process -Name mousemaster*; D:\usr\bin\mousemaster --configuration-file=D:\usr\bin\mousemaster.properties" &
+    }
+    else {
+        Invoke-SudoPwsh "Stop-Process -Name mousemaster*"
     }
 }
 Set-Alias -Name msmt -Value Invoke-KeyMouse

@@ -22,7 +22,7 @@ $ggSearchParameters = @{
         }
 
         $process_string = {
-        param($line)
+            param($line)
 
         }
 
