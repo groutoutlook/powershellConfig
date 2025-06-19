@@ -73,17 +73,10 @@ function Invoke-SudoPwsh {
 # INFO: mousemaster or something related to mouse controlling
 function Invoke-KeyMouse {
     Invoke-SudoPwsh "Stop-Process -Name mousemaster*"
-    # Invoke-SudoPwsh "Stop-Process -Name kanata*"
-    Push-Location
     if ($args.Length -ne 1) {
         Start-Sleep -Seconds 1 
-        Set-LocationWhere mousemaster
-        sudo run mousemaster &
-        # sudo run D:\ProgramDataD\MiscLang\07.02-Rust\nightly\kanata\target\release\kanata.exe -p 127.0.0.1:4039
-        # sudo run kanata -p 127.0.0.1:4039
-        # sudo run kanata &
+        sudo run mousemaster --configuration-file=D:\usr\bin\mousemaster.properties &
     }
-    Pop-Location
 }
 Set-Alias -Name msmt -Value Invoke-KeyMouse
 
@@ -213,18 +206,5 @@ function tree() {
     Write-Host "depth flags : -L=2" -ForegroundColor Green
 }
 
-function Get-Navitldr() {
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
-    # HACK: have to manually null it out... since `navi` dont understand the ''..?
-    if ($dashArgs -eq "") { $dashArgs = $null }
-    if ($pureStringArgs -eq "") {
-        navi
-    }
-    else {
-        navi --tldr $pureStringArgs $dashArgs
-    }
-}
-Set-Alias -Name man -Value Get-Navitldr -Scope Global -Option AllScope
-
+Set-Alias -Name nc -Value ncat -Scope Global -Option AllScope
 Set-Alias -Name bc -Value fend -Scope Global -Option AllScope
