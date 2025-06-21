@@ -214,13 +214,20 @@ function ncput(
     $defaultPort = 9001
 ) {
     $content | % { $_ | ncat $netAddress $defaultPort -w 20s
-        echo "Done sent $_"
+        Write-Host "Done sent $_" -ForegroundColor Green
     }
 }
 function ncget(
     $defaultPort = 9001
 ) {
-    ncat -l $defaultPort
+    $getString = ncat -lvp $defaultPort -w 20
+    if ($?){
+        Set-Clipboard $getString
+        Write-Host "Clipboard set to: $getString" -ForegroundColor Green
+    }
+    else{
+        Write-Host "nothing came up...? Timeout." -ForegroundColor Red
+    }
 }
 
 Set-Alias -Name bc -Value fend -Scope Global -Option AllScope
