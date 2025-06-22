@@ -191,6 +191,7 @@ function androidDevEnv {
     checkadb bat
 }
 Set-Alias -Name andDev -Value androidDevEnv
+Set-Alias -Name adbDev -Value androidDevEnv
 
 function Start-Explorer($inputPath = (Get-Location)) {
     $isPath = Test-Path $inputPath 
