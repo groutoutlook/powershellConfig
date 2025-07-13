@@ -12,22 +12,29 @@ $ggSearchParameters = @{
         $cursor = $null
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
         
-        $searchFunction = "Search-DuckDuckGo" 
-        $SearchWithQuery = ""
-        if ($line -match "[a-z]") {
-            $SearchWithQuery = "$searchFunction $line"
+        # HACK: have to perform one silent check to route those.
+        rg -q "$line" $HOME/hw/obs
+        if ($?){
+            $searchFunction = "rgj"
         }
-        else {
-            $SearchWithQuery = "$searchFunction $(Get-History -Count 1)"
+        else{
+            $searchFunction = "Search-DuckDuckGo" 
         }
-
+        
         $process_string = {
             param($line)
-
+            $SearchWithQuery = ""
+            if ($line -match "[a-z]") {
+                $SearchWithQuery = "$searchFunction $line"
+            }
+            else {
+                $SearchWithQuery = "$searchFunction $(Get-History -Count 1)"
+            }
+            return $SearchWithQuery
         }
 
-        [Microsoft.PowerShell.PSConsoleReadLine]::AddToHistory($line)
-        Invoke-Expression $SearchWithQuery
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $process_string.Invoke($line))
+        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
     }
 }
 
