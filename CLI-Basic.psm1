@@ -221,11 +221,11 @@ function ncget(
     $defaultPort = 9001
 ) {
     $getString = ncat -lvp $defaultPort -w 20
-    if ($?){
+    if ($?) {
         Set-Clipboard $getString
         Write-Host "Clipboard set to: $getString" -ForegroundColor Green
     }
-    else{
+    else {
         Write-Host "nothing came up...? Timeout." -ForegroundColor Red
     }
 }
