@@ -6,6 +6,7 @@ set dotenv-load := true
 # WARN: should have get them in .gitignore.
 set dotenv-filename	:= ".env"
 set unstable
+set fallback
 # set dotenv-required := true
 export JUST_ENV := "just_env" # WARN: this is also a method to export env var. 
 _default:
