@@ -107,7 +107,9 @@ function filterURI(
     )]
     [System.String[]]
     [Alias("s")]
-    $strings = (Get-Clipboard)
+    $strings = (Get-Clipboard),
+    [ValidateSet('usual', 'rarely', 'all')]
+    $stripUnplay = 'usual'
 ) {
     $link = $strings
     if (($link -match ' *^\[\p{L}') -or ($link -match '^.*-.*\[\p{L}')) {
@@ -121,11 +123,32 @@ function filterURI(
             # echo $processedLink
             return $null
         }
-        if ($processedLink -match 'end=999') {
-            Write-Host "Dont really want to watch $processedLink"
-            return $null
-        }
-        return  $markdownName + "`n" + $processedLink
+        $stripPattern = 'dontwanttoplaytoomuchman'
+        switch ($stripUnplay) {
+            'usual' {
+                if ($processedLink -match $stripPattern) {
+                    return $null
+                } else {
+                    return $markdownName + "`n" + $processedLink
+                }
+            }
+            'rarely' {
+                if ($processedLink -match $stripPattern) {
+                    return $markdownName + "`n" + $processedLink -replace $stripPattern,""
+                } else {
+                    return $null
+                }
+            }
+            'all' {
+                if ($processedLink -match $stripPattern) {
+                    return $markdownName + "`n" + $processedLink -replace $stripPattern,""
+                } else {
+                    return $markdownName + "`n" + $processedLink
+                }
+            }
+            
+            
+        }       
     }
     elseif ($link -match '^http') {
         Write-Host "Plain link" -ForegroundColor Yellow 

@@ -26,7 +26,7 @@ function reverse {
     param(
         [Parameter(
         ValueFromPipeline=$true,
-        ValueFromPipelineByPropertyName=$true)
+        ValueFromPipelineByPropertyName=$false)
         ]
         [String[]] $inputArr,
 
