@@ -63,7 +63,7 @@ function MoreTerminalModule
 	Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock { Invoke-PoshFzfSelectItems }
 	Set-PSReadLineKeyHandler -Key 'Alt+c' -ScriptBlock { Invoke-PoshFzfChangeDirectory }
 	Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-PoshFzfSelectHistory }
-	Invoke-Expression (&sfsu hook)
+	# Invoke-Expression (&sfsu hook)
 	# Import-Module -Name VirtualDesktop -Scope Global -Verbose
 	foreach($module in $global:extraModuleList)
 	{

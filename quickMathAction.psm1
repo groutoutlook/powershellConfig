@@ -1,10 +1,10 @@
 # Import-Module -Name Prelude
 function toHex($number) {
-    Write-Host('{0:X}' -f $number)
+    Write-Output('{0:X}' -f $number)
 }
 
 function toBin($number) {
-    Write-Host('{0:B}' -f $number)
+    Write-Output('{0:B}' -f $number)
 }
 
 
@@ -23,9 +23,18 @@ function Format-ReverseArray() {
 }
 
 function reverse { 
-    param([String[]] $inputArr)
+    param(
+        [Parameter(
+        ValueFromPipeline=$true,
+        ValueFromPipelineByPropertyName=$true)
+        ]
+        [String[]] $inputArr,
+
+        [Parameter()]
+        [String] $delimiter = ","
+    )
     $arr = @($inputArr)
     [array]::reverse($arr)
-    [string]$resarr = $arr -join ","
+    [string]$resarr = $arr -join $delimiter
     echo $resarr
 }
