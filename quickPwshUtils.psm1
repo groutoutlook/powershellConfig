@@ -128,21 +128,24 @@ function filterURI(
             'usual' {
                 if ($processedLink -match $stripPattern) {
                     return $null
-                } else {
+                }
+                else {
                     return $markdownName + "`n" + $processedLink
                 }
             }
             'rarely' {
                 if ($processedLink -match $stripPattern) {
-                    return $markdownName + "`n" + $processedLink -replace $stripPattern,""
-                } else {
+                    return $markdownName + "`n" + $processedLink -replace $stripPattern, ""
+                }
+                else {
                     return $null
                 }
             }
             'all' {
                 if ($processedLink -match $stripPattern) {
-                    return $markdownName + "`n" + $processedLink -replace $stripPattern,""
-                } else {
+                    return $markdownName + "`n" + $processedLink -replace $stripPattern, ""
+                }
+                else {
                     return $markdownName + "`n" + $processedLink
                 }
             }

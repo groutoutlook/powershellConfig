@@ -25,8 +25,8 @@ function Format-ReverseArray() {
 function reverse { 
     param(
         [Parameter(
-        ValueFromPipeline=$true,
-        ValueFromPipelineByPropertyName=$false)
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $false)
         ]
         [String[]] $inputArr,
 

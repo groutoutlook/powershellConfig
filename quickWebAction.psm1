@@ -83,19 +83,20 @@ Set-Alias -Name gg -Value Search-DuckDuckGo
 
 # NOTE: wrap input in single quote
 function Select-ID(
-	[Parameter(
-		# Mandatory = $true,
-		ValueFromPipeline = $true
-	)]
-	$url = (Get-Clipboard)
-){
+    [Parameter(
+        # Mandatory = $true,
+        ValueFromPipeline = $true
+    )]
+    $url = (Get-Clipboard),
+    [switch]$AllMatches
+) {
     # [“Dynamic Programming” is not referring to “computer programming” | Hacker News](https://news.ycombinator.com/item?id=44603349)
     # HACK: lots of false positive with this number 22954711, from SE network in my obs.
     # $id = $url | sls -all "[0-9a-fA-F]{4,}" |%{ $_.Matches.Value}
-    $id = $url | sls "[0-9a-fA-F]{4,}" |%{ $_.Matches.Value}
+    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{4,}" | % { $_.Matches.Value }
     Write-Verbose $id 
-    if ($id.GetType().Name -eq "Object[]"){
-        $id | %{rgj $_} 
+    if ($id.GetType().Name -eq "Object[]") {
+        $id | % { rgj $_ } 
     }
     else {
         rgj $id
@@ -104,6 +105,30 @@ function Select-ID(
 
 
 Set-Alias -Name id -Value Select-ID
+
+# NOTE: wrap input in single quote
+function Invoke-SelectedID(
+    [Parameter(
+        # Mandatory = $true,
+        ValueFromPipeline = $true
+    )]
+    $url = (Get-Clipboard),
+    [switch]$AllMatches
+) {
+    # [“Dynamic Programming” is not referring to “computer programming” | Hacker News](https://news.ycombinator.com/item?id=44603349)
+    # HACK: lots of false positive with this number 22954711, from SE network in my obs.
+    # $id = $url | sls -all "[0-9a-fA-F]{4,}" |%{ $_.Matches.Value}
+    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{4,}" | % { $_.Matches.Value }
+    Write-Verbose $id 
+    if ($id.GetType().Name -eq "Object[]") {
+        $finalQuery = $id -join "|"
+        igj "$finalQuery"
+    }
+    else {
+        igj $id
+    }
+}
+Set-Alias -Name iid -Value Invoke-SelectedID
 
 # function compSearch {
 #     $query = 'https://componentsearchengine.com/search?term='
