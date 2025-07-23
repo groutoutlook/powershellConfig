@@ -68,12 +68,12 @@ function y {
 Set-Alias -Name zz -Value y
 
 function Invoke-SudoPwsh {
-    sudo --inline pwsh -Command "$args"
+    sudo --inline pwsh -NoLogo -NoProfile -NonInteractive  -ExecutionPolicy Bypass  -Command "$args"
 }
 # INFO: mousemaster or something related to mouse controlling
 function Invoke-KeyMouse {
     if ($args.Length -ne 1) {
-        sudo run pwsh -Command "Stop-Process -Name mousemaster*; D:\usr\bin\mousemaster --configuration-file=D:\usr\bin\mousemaster.properties" &
+        sudo run pwsh -NoLogo -NoProfile -Command "Stop-Process -Name mousemaster*; D:\usr\bin\mousemaster --configuration-file=D:\usr\bin\mousemaster.properties" &
     }
     else {
         Invoke-SudoPwsh "Stop-Process -Name mousemaster*"

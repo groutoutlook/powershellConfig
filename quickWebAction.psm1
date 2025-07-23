@@ -88,12 +88,12 @@ function Select-ID(
         ValueFromPipeline = $true
     )]
     $url = (Get-Clipboard),
-    [switch]$AllMatches
+    [switch]$AllMatches,
+    $idLength = 4
 ) {
-    # [“Dynamic Programming” is not referring to “computer programming” | Hacker News](https://news.ycombinator.com/item?id=44603349)
-    # HACK: lots of false positive with this number 22954711, from SE network in my obs.
-    # $id = $url | sls -all "[0-9a-fA-F]{4,}" |%{ $_.Matches.Value}
-    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{4,}" | % { $_.Matches.Value }
+    # HACK: lots of false positive with this number 22954711, from SE network links
+    # $id = $url | sls -all "[0-9a-fA-F]{$idLength,}" |%{ $_.Matches.Value}
+    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }
     Write-Verbose $id 
     if ($id.GetType().Name -eq "Object[]") {
         $id | % { rgj $_ } 
@@ -113,12 +113,11 @@ function Invoke-SelectedID(
         ValueFromPipeline = $true
     )]
     $url = (Get-Clipboard),
-    [switch]$AllMatches
+    [switch]$AllMatches,
+    $idLength = 4
 ) {
-    # [“Dynamic Programming” is not referring to “computer programming” | Hacker News](https://news.ycombinator.com/item?id=44603349)
-    # HACK: lots of false positive with this number 22954711, from SE network in my obs.
-    # $id = $url | sls -all "[0-9a-fA-F]{4,}" |%{ $_.Matches.Value}
-    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{4,}" | % { $_.Matches.Value }
+    # $id = $url | sls -all "[0-9a-fA-F]{$idLength,}" |%{ $_.Matches.Value}
+    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }
     Write-Verbose $id 
     if ($id.GetType().Name -eq "Object[]") {
         $finalQuery = $id -join "|"
