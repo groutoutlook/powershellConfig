@@ -123,7 +123,7 @@ function filterURI(
             # echo $processedLink
             return $null
         }
-        $stripPattern = 'dontwanttoplaytoomuchman'
+        $stripPattern = '&dontwanttoplaytoomuchman'
         switch ($stripUnplay) {
             'usual' {
                 if ($processedLink -match $stripPattern) {

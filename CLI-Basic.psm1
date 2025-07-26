@@ -67,8 +67,16 @@ function y {
 }
 Set-Alias -Name zz -Value y
 
-function Invoke-SudoPwsh {
-    sudo --inline pwsh -NoLogo -NoProfile -NonInteractive  -ExecutionPolicy Bypass  -Command "$args"
+function Invoke-SudoPwsh (
+    [string]$command, # TODO: could be a ScriptBlock.
+    [switch]$haveProfile 
+)
+{
+    if($haveProfile){
+        sudo --inline pwsh -NoLogo -NonInteractive -ExecutionPolicy Bypass -Command "$command"
+    } else{
+        sudo --inline pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$command"
+    }
 }
 # INFO: mousemaster or something related to mouse controlling
 function Invoke-KeyMouse {

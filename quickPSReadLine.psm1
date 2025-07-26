@@ -13,14 +13,9 @@ $ggSearchParameters = @{
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
         
         # HACK: have to perform one silent check to route those.
-        rg -q "`'$line`'" $HOME/hw/obs
-        if ($lastexitcode) {
-            $searchFunction = "Search-DuckDuckGo" 
-        }
-        else {
-            $searchFunction = "rgj"
-        }
-        
+        $searchFunction = "Search-DuckDuckGo" 
+        rg -q "$($line -join ' ')" $HOME/hw/obs && Set-Variable -Name searchFunction -Value "rgj"
+       
         $process_string = {
             param($line)
             $SearchWithQuery = ""
