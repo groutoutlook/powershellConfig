@@ -6,28 +6,15 @@ function global:Backup-Environment($Verbose = $null)
 	Write-Host "[$(Get-Date)] Move Profile. CurrentUserCurrentHost" -ForegroundColor Green
 }
 
-function AppendPrompt
-{
-	function global:prompt
-	{
-		if ($null -ne $__zoxide_prompt_old)
-		{
-			& $__zoxide_prompt_old
-		}
-		$null = __zoxide_hook
-	}
-}
-
 function P7()
 {
 	$env:_ZO_FZF_OPTS = "--height=35% --bind one:accept"
 
 	Invoke-Expression (&starship init powershell)
 	Invoke-Expression (& { (zoxide init powershell | Out-String) })
-	Remove-Item Alias:rd 
+	gci Alias:/rd && Remove-Item Alias:rd 
 	Set-Alias -Name cd -Value z -Scope Global -Option AllScope 
 	Set-Alias -Name cdi -Value zi -Scope Global -Option AllScope 
-	# AppendPrompt
 }
 
 $global:initialModuleList=@(

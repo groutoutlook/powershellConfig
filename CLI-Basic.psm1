@@ -56,7 +56,7 @@ function igj() {
 }
 
 # INFO: yazi quick call.
-function y {
+function yz {
     $tmp = [System.IO.Path]::GetTempFileName()
     yazi $args --cwd-file="$tmp"
     $cwd = Get-Content -Path $tmp -Encoding UTF8
@@ -65,10 +65,18 @@ function y {
     }
     Remove-Item -Path $tmp
 }
-Set-Alias -Name zz -Value y
+Set-Alias -Name zz -Value yz
 
-function Invoke-SudoPwsh {
-    sudo --inline pwsh -NoLogo -NoProfile -NonInteractive  -ExecutionPolicy Bypass  -Command "$args"
+function Invoke-SudoPwsh (
+    [string]$command, # TODO: could be a ScriptBlock.
+    [switch]$haveProfile 
+)
+{
+    if($haveProfile){
+        sudo --inline pwsh -NoLogo -NonInteractive -ExecutionPolicy Bypass -Command "$command"
+    } else{
+        sudo --inline pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$command"
+    }
 }
 # INFO: mousemaster or something related to mouse controlling
 function Invoke-KeyMouse {

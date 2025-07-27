@@ -123,7 +123,7 @@ function filterURI(
             # echo $processedLink
             return $null
         }
-        $stripPattern = 'dontwanttoplaytoomuchman'
+        $stripPattern = '&dontwanttoplaytoomuchman'
         switch ($stripUnplay) {
             'usual' {
                 if ($processedLink -match $stripPattern) {
@@ -240,6 +240,17 @@ function quickSymLink($path = (Get-Clipboard)) {
         Write-Error "$path not a valid path."
     }
 }
+
+function swap_prompt{
+    function global:prompt
+	{
+	    echo "nothing, just PS:"
+	}
+}
+
+
+
+
 Set-Alias -Name cdsl -Value Set-LocationSymLink	
 Set-Alias -Name rsjb -Value Restart-Job
 Set-Alias -Name jpa -Value Join-Path -Scope Global -Option AllScope
