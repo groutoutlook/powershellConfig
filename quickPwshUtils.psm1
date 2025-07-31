@@ -241,11 +241,10 @@ function quickSymLink($path = (Get-Clipboard)) {
     }
 }
 
-function swap_prompt{
-    function global:prompt
-	{
-	    echo "nothing, just PS:"
-	}
+function swap_prompt {
+    function global:prompt {
+        echo "nothing, just PS:"
+    }
 }
 
 

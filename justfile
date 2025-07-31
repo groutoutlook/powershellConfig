@@ -14,7 +14,7 @@ _default:
 
 alias fmt := format
 format args="nothing":
-    Import-Module ./Formatter.psm1 -Force && gci *.psm1 | % { Format-PowerShellFile $_ }
+    Import-Module ./Formatter.psm1 -Force && gci *.psm1,*.ps1 | % { Format-PowerShellFile $_ }
 
 alias d := deploy
 deploy *args="cif":

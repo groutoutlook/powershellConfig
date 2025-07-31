@@ -70,11 +70,11 @@ Set-Alias -Name zz -Value yz
 function Invoke-SudoPwsh (
     [string]$command, # TODO: could be a ScriptBlock.
     [switch]$haveProfile 
-)
-{
-    if($haveProfile){
+) {
+    if ($haveProfile) {
         sudo --inline pwsh -NoLogo -NonInteractive -ExecutionPolicy Bypass -Command "$command"
-    } else{
+    }
+    else {
         sudo --inline pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$command"
     }
 }
