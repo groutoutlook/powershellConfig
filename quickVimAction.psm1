@@ -26,6 +26,8 @@ function :m {
     Restart-ModuleList -ModuleList $global:personalModuleList -ModulePath $env:p7settingDir
 }
 
+Set-Alias :mo Restart-ModuleList 
+
 function :backup($Verbose = $null) {
     Import-Module -Name $env:dotfilesRepo\BackupModule.psm1
     Backup-Environment $Verbose && Backup-Extensive $Verbose
