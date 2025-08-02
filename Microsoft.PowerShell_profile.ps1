@@ -39,16 +39,8 @@ $global:scriptingModuleList = @(
 $global:personalModuleList = $global:initialModuleList + $global:extraModuleList
 
 function MoreTerminalModule {
-    Import-Module -Name PSFzf -Scope Global 
-    Set-PSReadLineKeyHandler -Key Tab -ScriptBlock { Invoke-FzfTabCompletion }
-
     Invoke-Expression (&posh-fzf init | Out-String)
-    # Customize the key bindings to your liking
-    Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock { Invoke-PoshFzfSelectItems }
-    Set-PSReadLineKeyHandler -Key 'Alt+c' -ScriptBlock { Invoke-PoshFzfChangeDirectory }
     Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-PoshFzfSelectHistory }
-    # Invoke-Expression (&sfsu hook)
-    # Import-Module -Name VirtualDesktop -Scope Global -Verbose
     foreach ($module in $global:extraModuleList) {
         Import-Module -Name (Join-Path $env:p7settingDir $module) -Scope Global
     }
@@ -65,17 +57,24 @@ function initShellApp() {
 function Restart-ModuleList() {
     param (
         [array]$ModuleList = $global:personalModuleList,
-        [string]$ModulePath = $env:p7settingDir
+        [string]$ModulePath = $pwd
     )
     foreach ($ModuleName in $ModuleList) {
-        Remove-Module -Name (Join-Path $ModulePath $ModuleName) -ErrorAction SilentlyContinue
-        Import-Module -Name (Join-Path $ModulePath $ModuleName) -Force -ErrorAction Stop
+        $moduleFullPath = Join-Path $ModulePath $ModuleName
+        if (Test-Path -Path $moduleFullPath) {
+            Remove-Module -Name $moduleFullPath -ErrorAction SilentlyContinue
+            Import-Module -Name $moduleFullPath -Force -ErrorAction Stop
+        }
+        else {
+            Remove-Module -Name $ModuleName -ErrorAction SilentlyContinue
+            Import-Module -Name $ModuleName -Force -ErrorAction Stop
+        }
         Write-Output "$ModuleName reimported"
     }
 }
 function global:Restart-Profile($option = "env") {
     if ($option -match "^all") {
-        Restart-ModuleList
+        Restart-ModuleList -ModuleList $global:personalModuleList -ModulePath $env:p7settingDir
         . $PROFILE
         Write-Output "Restart profile and All module."
     }
