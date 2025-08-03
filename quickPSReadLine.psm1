@@ -182,16 +182,7 @@ $DoubleQuotesNestedBracketParameter = @{
 }
 
 
-
 $QuickZoxideParameters = @{
-    # Key              = 'Ctrl+shift+z'
-    Key              = 'alt+x'
-    BriefDescription = 'Quick zoxide Mode'
-    LongDescription  = 'quick zoxide opened.'
-    ScriptBlock      = $quickZoxide
-}
-
-$QuickZoxide_2_Parameters = @{
     Key              = 'Ctrl+shift+z'
     BriefDescription = 'Quick zoxide Mode'
     LongDescription  = 'quick zoxide opened.'
@@ -443,7 +434,6 @@ $HistorySearchGlobalParameters = @{
     }
 }
 
-
 # Custom implementation of the ViEditVisually PSReadLine function.
 $openEditorParameters = @{
     Key              = 'ctrl+x,ctrl+e' 
@@ -455,36 +445,53 @@ $openEditorParameters = @{
     }
 }
 
-# $cdHandlerParameters = @{
-#   Key = 'Alt+x'
-#   BriefDescription = 'Set-LocationWhere the paste directory.'
-#   LongDescription = 'Invoke cdwhere with the current directory in the command line'
-#   ScriptBlock = {
-#     param($key, $arg)   # The arguments are ignored in this example
-#
-#     # GetBufferState gives us the command line (with the cursor position)
-#     $line = $null
-#     $cursor = $null
-#     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
-#       [ref]$cursor)
-#     $invokeFunction = "Set-LocationWhere"
-#     $Query = "$invokeFunction `'$line`'"
-#     #Store to history for future use.
-#
-#     [Microsoft.PowerShell.PSConsoleReadLine]::BeginningOfLine()
-#     [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$invokeFunction `'")
-#     [Microsoft.PowerShell.PSConsoleReadLine]::EndOfLine()
-#     [Microsoft.PowerShell.PSConsoleReadLine]::Insert("`'")
-#     # [Microsoft.PowerShell.PSConsoleReadLine]::AddToHistory($Query)
-#     #Store to history for future use.
-#     # Can InvertLine() here to return empty line.
-#     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
-#       
-#   }
-# }
-#
+function Edit-PipedContent {
+    param(
+        [Parameter(ValueFromPipeline = $true)]
+        [string[]]$InputObject
+    )
+    
+    begin { $content = @() }
+    process { $content += $InputObject }
+    end {
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        $content | Out-File -FilePath $tempFile -Encoding UTF8
+        
+        # Edit with your preferred editor
+        & $env:EDITOR $tempFile
+        
+        # Read back the edited content
+        Get-Content $tempFile
+        Remove-Item $tempFile
+    }
+}
 
-
+# Custom implementation that uses ViEditVisually with piped content
+$pipeEditorParameters = @{
+    Key              = 'alt+x' 
+    BriefDescription = 'pipe -> editor'
+    LongDescription  = 'pipe results of a command to ViEditVisually.'
+    ScriptBlock      = {
+        param($key, $arg)
+        
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        
+        # Determine source command - prioritize current line like your existing pattern
+        $sourceCommand = if (-not [string]::IsNullOrWhiteSpace($line)) {
+            $line
+        } else { 
+            (Get-History -Count 1).CommandLine 
+        }
+        
+        # Create command that captures output and puts it in buffer for ViEditVisually
+        $__output = ($sourceCommand) | Invoke-Expression | Out-String
+        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+        [Microsoft.PowerShell.PSConsoleReadLine]::Insert($__output)
+        [Microsoft.PowerShell.PSConsoleReadLine]::ViEditVisually()
+    }
+}
 
 $rgToNvimParameters = @{
     Key              = 'Alt+v'
@@ -1067,7 +1074,6 @@ $HandlerParameters = @(
     $ggSearchParameters
     , $VaultSearchParameters
     , $QuickZoxideParameters
-    , $QuickZoxide_2_Parameters
     , $omniSearchParameters
     , $JrnlParameters 
     , $HistorySearchGlobalParameters
@@ -1085,6 +1091,7 @@ $HandlerParameters = @(
     , $IterateCommandParameters
     , $OptionsSwitchParameters
     , $openEditorParameters
+    , $pipeEditorParameters
     , $GlobalEditorSwitch
     , $MathExpressionParameter
     , $helpParameter

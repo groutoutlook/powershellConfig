@@ -19,8 +19,28 @@ function :a {
 }
 
 function :r {
-    p7 && p7mod 
+    p7 && Import-MoreModule 
 }
+
+$global:scriptingModuleList = @(
+    "D:\ProgramDataD\MiscLang\24.01-PowerShell\proj\PSD1.Config.Utils\Psd1.Filesystem.Utils.psd1"
+    # "PSTimers"
+)
+
+
+function Import-MoreModule {
+    Invoke-Expression (&posh-fzf init | Out-String)
+    Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-PoshFzfSelectHistory }
+    foreach ($module in $global:extraModuleList) {
+        Import-Module -Name (Join-Path $env:p7settingDir $module) -Scope Global
+    }
+    foreach ($module in $global:scriptingModuleList) {
+        Import-Module -Name $module -Scope Global
+    }
+}
+
+Set-Alias -Name p7mod -Value Import-MoreModule
+
 
 function :m {
     Restart-ModuleList -ModuleList $global:personalModuleList -ModulePath $env:p7settingDir
