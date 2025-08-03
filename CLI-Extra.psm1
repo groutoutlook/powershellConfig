@@ -167,8 +167,10 @@ function ss {
     }
     else {
         # HACK: fallback to alt+tab
-        [System.Windows.Forms.SendKeys]::SendWait("%{TAB}")
+        [System.Windows.Forms.SendKeys]::SendWait("%{ESC}")
+        echo "alt tab...?"
     }
+    sleep 1
 
     Start-Process -FilePath screencapture -ArgumentList "--lang:en $($args -join `" `")" -Wait
     # Restore the window
