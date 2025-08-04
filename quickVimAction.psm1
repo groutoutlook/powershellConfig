@@ -160,7 +160,7 @@ function :vs {
 # HACK: As today I could `Get-UniqueEntryJrnl table | Set-Clipboard`
 $global:vaultName = "MainVault"
 $global:vaultPath = "D://ProgramDataD//Notes//Obsidian//$vaultName"
-$JrnlTable = @{
+$global:JrnlTable = @{
     "swc"         = "$vaultPath//note_software//CLI.Terminal.Software.Journal.md"
     "prog"        = "$vaultPath//note_algo_lang//ProgrammingJournal.md"
     "tlm"         = "$vaultPath//note_entertainment//Device.Journal.md"
