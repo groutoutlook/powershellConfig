@@ -922,6 +922,7 @@ $DoubleQuotesParameter = @{
     }
 }
 
+# TODO: all this should have the nearest match function implemented in alt+0 and alt+9
 
 $WrapPipeParameter = @{
     Key              = 'Alt+\'
@@ -950,6 +951,65 @@ $WrapPipeParameter = @{
         }
     }
 }
+
+
+$SelectPipeParameter = @{
+    Key              = 'Alt+Shift+|'
+    BriefDescription = 'wrap in pipe (| select)'
+    LongDescription  = 'As brief.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        if ($selectionStart -ne -1) {
+            $selectedText = $line.SubString($selectionStart, $selectionLength)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "| select $selectedText ")
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + 9)
+        }
+        else {
+            # Append |%{} at the end and place cursor between braces
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($line.Length, 0, "| select ")
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($line.Length + 9)
+        }
+    }
+}
+
+
+$WherePipeParameter = @{
+    Key              = 'Alt+/'
+    BriefDescription = 'wrap in pipe (| ? -eq )'
+    LongDescription  = 'As brief.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        if ($selectionStart -ne -1) {
+            $selectedText = $line.SubString($selectionStart, $selectionLength)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "| ? $selectedText -eq ")
+            # HACK: only fill in the RHS here...
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + 9)
+        }
+        else {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($line.Length, 0, "| ?  -eq")
+            # NOTE: Missing LHS so we fill them first.
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($line.Length + 4)
+        }
+    }
+}
+
+
 
 $GlobalEditorSwitch = @{
     Key              = 'Ctrl+Shift+e,Ctrl+Shift+e'
@@ -1085,7 +1145,9 @@ $HandlerParameters = @(
     , $ParenthesesAllParameter
     , $DoubleQuotesParameter
     , $DoubleQuotesNestedBracketParameter
-    , $wrappipeparameter
+    , $WrapPipeParameter
+    , $WherePipeParameter
+    , $SelectPipeParameter
     , $rgToNvimParameters
     , $rgToRggParameters
     , $IterateCommandParameters
