@@ -6,8 +6,6 @@ function global:Backup-Environment($Verbose = $null) {
 }
 
 function P7() {
-    $env:_ZO_FZF_OPTS = "--height=35% --bind one:accept"
-
     Invoke-Expression (&starship init powershell)
     Invoke-Expression (& { (zoxide init powershell | Out-String) })
     Get-ChildItem Alias:/rd | Out-Null && Remove-Item Alias:rd 

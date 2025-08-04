@@ -1,3 +1,7 @@
+# CLI-specific env var.
+$env:EZA_CONFIG_DIR = "$env:USERPROFILE\.config\eza"
+$env:_ZO_FZF_OPTS = "--height=35% --bind one:accept"
+
 function omniSearchObsidian {
     $query = ""
     $args | % {
@@ -239,3 +243,5 @@ function ncget(
 }
 
 Set-Alias -Name bc -Value fend -Scope Global -Option AllScope
+
+
