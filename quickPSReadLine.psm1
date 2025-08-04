@@ -481,7 +481,8 @@ $pipeEditorParameters = @{
         # Determine source command - prioritize current line like your existing pattern
         $sourceCommand = if (-not [string]::IsNullOrWhiteSpace($line)) {
             $line
-        } else { 
+        }
+        else { 
             (Get-History -Count 1).CommandLine 
         }
         

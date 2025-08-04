@@ -243,5 +243,3 @@ function ncget(
 }
 
 Set-Alias -Name bc -Value fend -Scope Global -Option AllScope
-
-
