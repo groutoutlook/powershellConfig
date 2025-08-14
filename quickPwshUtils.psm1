@@ -75,8 +75,9 @@ function Send-Key {
 }
 
 # INFO: quick create hashmap.
-function buildIndex {
-    param( [Object[]]$inputArray, [string]$keyName) 
+function buildIndex
+    ( [Object[]]$inputArray, [string]$keyName) 
+{
 
     $index = @{};
     foreach ($row in $inputArray) {

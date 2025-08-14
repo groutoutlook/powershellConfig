@@ -518,8 +518,7 @@ function :e {
     }
     if ($argument -eq "$defaultArgs ") {
         $espansoNvimSession = "espanso"
-        $codeEditor = "neovide --frame none -- "
-        Invoke-Expression "$codeEditor -c 'lua require(`"resession`").load `"$espansoNvimSession`"'"
+        Invoke-Expression "nvim -c 'lua require(`"resession`").load `"$espansoNvimSession`"'"
     }
     else {
         Invoke-Expression "espanso $argument"

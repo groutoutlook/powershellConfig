@@ -82,15 +82,17 @@ Set-Alias -Name dg -Value Search-DuckDuckGo
 Set-Alias -Name gg -Value Search-DuckDuckGo
 
 # NOTE: wrap input in single quote
-function Select-ID(
-    [Parameter(
-        # Mandatory = $true,
-        ValueFromPipeline = $true
-    )]
-    $url = (Get-Clipboard),
-    [switch]$AllMatches,
-    $idLength = 4
-) {
+function Select-ID
+    {
+    param (
+        [Parameter(
+            # Mandatory = $true,
+            ValueFromPipeline = $true
+        )]
+        $url = (Get-Clipboard),
+        [switch]$AllMatches,
+        $idLength = 4
+    )
     # HACK: lots of false positive with this number 22954711, from SE network links
     # $id = $url | sls -all "[0-9a-fA-F]{$idLength,}" |%{ $_.Matches.Value}
     $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }

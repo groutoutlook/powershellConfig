@@ -18,14 +18,15 @@ function omniSearchObsidian {
 # }
 
 function rgj() {
+    # INFO: Im so lazy typing .* everytime. for space you should type \s. or wrap in quotes. 
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
+    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join '.*'
     $command = "rg `"$pureStringArgs`" -g '*Journal.md' (zoxide query obs) -M 400 -A3 $dashArgs"
     Invoke-Expression $command
 
     if ($? -eq $false) {
         Write-Host "not in those journal.md" -ForegroundColor Magenta
-        rg "$($args -join " ")" -g !'*Journal.md' (zoxide query obs) -M 400
+        rg "$($args -join ".*")" -g !'*Journal.md' (zoxide query obs) -M 400
         if ($? -eq $false) {
             Search-DuckDuckGo ($args -join " ") 
             Write-Host "Fall back to other search engine." -ForegroundColor Red
@@ -39,7 +40,7 @@ function rgj() {
 # HACK: rg in vault's other files.
 function rgo() { 
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
+    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join '.*'
     $command = "rg `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) -M 400 -C0 $dashArgs"
     Invoke-Expression $command
 }
@@ -47,14 +48,14 @@ function rgo() {
 # HACK: rg in vault's other files.
 function igo() { 
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
+    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join '.*'
     $command = "ig `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
     Invoke-Expression $command
 }
 
 function igj() {
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
+    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join '.*'
     $command = "ig `"$pureStringArgs`"  -g '*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
     Invoke-Expression $command
 }
@@ -211,6 +212,13 @@ function lsd {
     eza --hyperlink --icons=always $args 
 }
 Set-Alias -Name ls -Value lsd -Scope Global -Option AllScope
+
+# HACK: `la` since I pressed that a lot.
+function la {
+    eza --hyperlink --icons=always -al $args  
+}
+Set-Alias -Name ls -Value lsd -Scope Global -Option AllScope
+
 
 # TODO: check if there are more than the default level (-L=2) of nesting directory.
 # NOTE: and echo it? 
