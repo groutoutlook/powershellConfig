@@ -80,10 +80,32 @@ function Search-DuckDuckGo {
 
 Set-Alias -Name dg -Value Search-DuckDuckGo
 Set-Alias -Name gg -Value Search-DuckDuckGo
+$parsing_id = {
+    param ($url,
+        [switch]$AllMatches,
+        [switch]$preferString,
+        $idLength = 4
+    )
+
+    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }
+    Write-Verbose "id: $id" 
+
+    $void,$repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" |
+    % { Select-RepoLink $_ }
+    Write-Verbose "Repo name: $repoName"
+
+    # INFO: id can fallback to reponame.
+    if($preferString){
+        $id = $repoName ?? $id
+    }
+    else{
+        $id = $id ?? $repoName
+    }
+    return $id
+}
 
 # NOTE: wrap input in single quote
-function Select-ID
-    {
+function Select-ID{
     param (
         [Parameter(
             # Mandatory = $true,
@@ -91,16 +113,10 @@ function Select-ID
         )]
         $url = (Get-Clipboard),
         [switch]$AllMatches,
+        [switch]$preferString,
         $idLength = 4
     )
-    # HACK: lots of false positive with this number 22954711, from SE network links
-    # $id = $url | sls -all "[0-9a-fA-F]{$idLength,}" |%{ $_.Matches.Value}
-
-    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }
-    Write-Verbose $id 
-
-    $repoName = $url | sls "github|gitlab|codeberg" | %{$_}
-    Write-Verbose $repoName
+    $id = $parsing_id.Invoke($url,$AllMatches,$preferString,$idLength)
 
     if ($id.GetType().Name -eq "Object[]") {
         $id | % { rgj $_ } 
@@ -121,11 +137,11 @@ function Invoke-SelectedID(
     )]
     $url = (Get-Clipboard),
     [switch]$AllMatches,
+    [switch]$preferString,
     $idLength = 4
 ) {
-    # $id = $url | sls -all "[0-9a-fA-F]{$idLength,}" |%{ $_.Matches.Value}
-    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }
-    Write-Verbose $id 
+    
+    $id = $parsing_id.Invoke($url,$AllMatches,$preferString,$idLength)
     if ($id.GetType().Name -eq "Object[]") {
         $finalQuery = $id -join "|"
         igj "$finalQuery"

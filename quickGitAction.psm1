@@ -1,7 +1,3 @@
-# Git quick action Powershell Modules.
-# Import-Module posh-git
-# Add-PoshGitToProfile -AllHosts
-
 function quickInitGit($repo_name = "$(Split-Path $pwd -Leaf)", $remote_branch_name = "origin", $remote = "gh", $default_user = "groutoutlook") {
     # Copy-Item "$(zoxide query pwsh)/.github" $pwd -Recurse
     Copy-Just && git init && git add * && git commit -m "feat: genesis"
@@ -14,12 +10,9 @@ function quickDeInitGit($repo_name = "$(Split-Path $pwd -Leaf)", $remote = "gh",
     gh repo delete $repo_name
 }
 
-
-function openWebRemote {
-    chrome (git remote get-url origin)
-}
-
-function gitCloneClipboard($finalDir = $null, $url = (Get-Clipboard)) {
+function Select-RepoLink{
+    param($url = (Get-Clipboard))
+    
     # HACK: Real hack is extracting links from the Markdown links.
     if ($url -match '^\[') {
         $processedLink = $url -replace '^\[(.*)\]\(', "" -replace '\)$', "" 
@@ -33,19 +26,29 @@ function gitCloneClipboard($finalDir = $null, $url = (Get-Clipboard)) {
     if ($processedLink -match "^https") {
         # INFO: here we trim the `?.*` queries part of the URL.
         $trimmedQueryURI = $processedLink -replace "\?.*", "" -replace "/tree/.*", ""
-
-        # if ($processedLink -match "/.*$") {
-        #     $matchedPart = $matches[1]
-        # }
         $repoName = Split-Path $trimmedQueryURI -Leaf
+        return $trimmedQueryURI,$repoName
+    }
+    else{
+        return $null,$null
+    }
+}
 
-        git clone  "--recursive" ($trimmedQueryURI) $finalDir && cd $repoName
+function gitCloneClipboard(
+    $finalDir = $null, 
+    $url = (Get-Clipboard),
+    $gitOptions 
+) 
+    {
+    if ($trimmedQueryURI,$repoName = Select-RepoLink $url) {
+        git clone --recursive $gitOptions ($trimmedQueryURI) $finalDir && cd $repoName
     }
     else {
         echo ($url).psobject
         Write-Host "Not a link." -ForegroundColor Red
     }
 }
+
 Set-Alias -Name gccb -Value gitCloneClipboard
 
 Set-Alias -Name gui -Value gitui
