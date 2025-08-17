@@ -95,8 +95,13 @@ function Select-ID
     )
     # HACK: lots of false positive with this number 22954711, from SE network links
     # $id = $url | sls -all "[0-9a-fA-F]{$idLength,}" |%{ $_.Matches.Value}
+
     $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }
     Write-Verbose $id 
+
+    $repoName = $url | sls "github|gitlab|codeberg" | %{$_}
+    Write-Verbose $repoName
+
     if ($id.GetType().Name -eq "Object[]") {
         $id | % { rgj $_ } 
     }

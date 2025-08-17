@@ -38,18 +38,16 @@ function initShellApp() {
 function Restart-ModuleList() {
     param (
         [array]$ModuleList,
-        [string]$ModulePath = $pwd
+        [string]$ModulePath = $pwd,
+        [Switch]$preferPsd1
     )
     foreach ($ModuleName in $ModuleList) {
         $moduleFullPath = Join-Path $ModulePath $ModuleName
-        if (Test-Path -Path $moduleFullPath) {
-            Remove-Module -Name $moduleFullPath -ErrorAction SilentlyContinue
-            Import-Module -Name $moduleFullPath -Force -ErrorAction Stop
-        }
-        else {
-            Remove-Module -Name $ModuleName -ErrorAction SilentlyContinue
-            Import-Module -Name $ModuleName -Force -ErrorAction Stop
-        }
+        $psd1Module = (Test-Path -Path "$moduleFullPath.psd1") ? "$moduleFullPath.psd1" : $moduleFullPath 
+        $psm1Module = (Test-Path -Path "$moduleFullPath.psm1") ? "$moduleFullPath.psm1" : $moduleFullPath
+        $finalPath = $preferPsd1 ? $psd1Module : $psm1Module
+        Remove-Module -Name $moduleFullPath -ErrorAction SilentlyContinue
+        Import-Module -Name $moduleFullPath -Force -ErrorAction Stop
         Write-Output "$ModuleName reimported"
     }
 }

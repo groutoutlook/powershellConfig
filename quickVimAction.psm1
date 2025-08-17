@@ -55,15 +55,8 @@ function :backup($Verbose = $null) {
 Set-Alias -Name :bak -Value :backup
 # NOTE: neovim trigger function.
 function :v {
-    if ($args[$args.Length - 1] -eq "g") {
-        # "^gui")
-        $codeEditor = "neovide --frame none -- "
-        $parsedArgs = $args[0..($args.Length - 2)]
-    }
-    else {
-        $codeEditor = "nvim"
-        $parsedArgs = $args
-    }
+    $codeEditor = "nvim"
+    $parsedArgs = $args
   
     $parsedArgs = @($parsedArgs | ForEach-Object { 
             $_ -split ":", "" -split " ", "" 
@@ -146,7 +139,6 @@ function :vs {
     }
     else {
         if ($null -eq $env:nvim_appname) {
-            # $codeEditor = "neovide --frame none -- "
             $codeEditor = "nvim"
             Invoke-Expression "$codeEditor -c `"lua require('resession').load '$processedString'`""
         }
@@ -400,27 +392,7 @@ function :obsidian(
         }
     }
 }
-
-# # INFO: switch workspace.
-# $workspaceNameTable = @{
-#     "j"  = "Journal-code-eda"
-#     "jc" = "Journal-code-eda"
-#     "o"  = "Obs-Nvim"
-#     "on" = "Obs-Nvim"
-# }
-# function :ow {
-#     $defaultWorkspace = "Obs-Nvim"
-#
-#     # Prepare arguments  
-#     $argument = $args -join " "
-#     $workspaceName = $workspaceNameTable[$argument] ?? "$defaultWorkspace"
-#
-#     $originalURI = "obsidian://advanced-uri?vault=$global:vaultName&workspace=$workspaceName" 	
-#     (Start-Process "$originalURI" &) | Out-Null
-# }
-#
 Set-Alias -Name :o -Value :obsidian
-# Set-Alias -Name :oo -Value obsidian-cli
 
 # TODO: make the note taking add the #tag on it. so I could enter the note and start wrting on it right away without adding tag.
 function :jrnl {
@@ -518,7 +490,7 @@ function :e {
     }
     if ($argument -eq "$defaultArgs ") {
         $espansoNvimSession = "espanso"
-        Invoke-Expression "nvim -c 'lua require(`"resession`").load `"$espansoNvimSession`"'"
+        :vs es
     }
     else {
         Invoke-Expression "espanso $argument"
