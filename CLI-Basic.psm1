@@ -17,10 +17,19 @@ function omniSearchObsidian {
 #     Invoke-Expression $command
 # }
 
-function rgj() {
+function rgj
+(
+)
+{
     # INFO: Im so lazy typing .* everytime. for space you should type \s. or wrap in quotes. 
+    
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join '.*'
+    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
+
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 10
+    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
+
+    $pureStringArgs = $pureStringArgs -join $patternBetween
     $command = "rg `"$pureStringArgs`" -g '*Journal.md' (zoxide query obs) -M 400 -A3 $dashArgs"
     Invoke-Expression $command
 
@@ -40,7 +49,12 @@ function rgj() {
 # HACK: rg in vault's other files.
 function rgo() { 
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join '.*'
+    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
+
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 10
+    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
+
+    $pureStringArgs = $pureStringArgs -join $patternBetween
     $command = "rg `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) -M 400 -C0 $dashArgs"
     Invoke-Expression $command
 }
@@ -48,14 +62,26 @@ function rgo() {
 # HACK: rg in vault's other files.
 function igo() { 
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join '.*'
+    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
+
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 10
+    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
+
+    $pureStringArgs = $pureStringArgs -join $patternBetween
+
     $command = "ig `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
     Invoke-Expression $command
 }
 
 function igj() {
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join '.*'
+    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
+
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 10
+    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
+
+    $pureStringArgs = $pureStringArgs -join $patternBetween
+
     $command = "ig `"$pureStringArgs`"  -g '*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
     Invoke-Expression $command
 }
@@ -127,6 +153,18 @@ function zq {
 function zqi {
     Invoke-Expression  "zoxide query -i $($args -join " ")"
 }
+function zb {
+    Invoke-Expression  "z $(zqb ($args -join ' '))"
+}
+function zbi {
+    Invoke-Expression  "z $(zqbi ($args -join ' '))"
+}
+function zqb {
+    Invoke-Expression  "zoxide query $($args -join " ") --base-dir $pwd"
+}
+function zqbi {
+    Invoke-Expression  "zoxide query -i $($args -join " ") --base-dir $pwd"
+}
 function ze {
     Invoke-Expression "zoxide edit $($args -join " ")" 
 }
@@ -136,6 +174,7 @@ function za {
 
 Set-Alias zo zq
 Set-Alias zoi zqi
+Set-Alias cdb zb
 Set-Alias rgr scooter
 
 # INFO: vscode quick open, with line/column number

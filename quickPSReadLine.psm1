@@ -95,16 +95,25 @@ $quickZoxide = {
 
     $process_string = {
         param($line)
-        $existedCd = "cd|z|zq"
+        $existedCd = "cd|z|zb|zq|zqb"
+        $jumpTable = @{
+            'zi'   = 'zb'
+            'zqi'  = 'zqb'
+            'zqbi' = 'zb'
+            'zbi'  = 'z'
+            'cdi'  = 'zb'
+        }
+
         switch -Regex ($line) {
             "^(${existedCd})i\s" {
-                $matchString = $Matches[0]
-                $SearchWithQuery = $line -replace "${matchString}", "zz "
+                $matchString = $Matches[0].TrimEnd()
+                $SearchWithQuery = $line -replace "${matchString} ", "$($jumpTable[$matchString]) "
                 break;
             }
+
             "^(${existedCd})(\s|$)" {
                 $matchString = $Matches[1]
-                $SearchWithQuery = $line -replace "^${matchString}(\s|$)", "${matchString}i "
+                $SearchWithQuery = $line -replace "${matchString} ", "${matchString}i "
                 break
             }
             default {
@@ -183,7 +192,7 @@ $DoubleQuotesNestedBracketParameter = @{
 
 
 $QuickZoxideParameters = @{
-    Key              = 'Ctrl+shift+z'
+    Key              = @('alt+z','ctrl+shift+z')
     BriefDescription = 'Quick zoxide Mode'
     LongDescription  = 'quick zoxide opened.'
     ScriptBlock      = $quickZoxide
@@ -421,13 +430,19 @@ $HistorySearchGlobalParameters = @{
             [ref]$cursor)
         $finalOptions = $null
         $defaultValue = 8
-    
 
+        # NOTE: should have used LSP for this instead.
+        $originalCommand = $line -split " "
+
+        if($originalCommand.Count -lt 2){
         Get-Content -Tail 200 (Get-PSReadLineOption).HistorySavePath `
         | Select-String -Pattern '^j\s+(?:\w|\:)' `
         | fzf --query '^j ' `
         | ForEach-Object { $finalOptions = $_ + " $($defaultValue)e" }
-
+        }
+        else{
+            $finalOptions = " 6 | b -lmd"
+        }
         [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$finalOptions")
     
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
