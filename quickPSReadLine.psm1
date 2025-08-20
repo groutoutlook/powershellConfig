@@ -609,6 +609,12 @@ $sudoRunParameters = @{
         $cursor = $null
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
             [ref]$cursor)
+
+        if($line.Trim() -match "^(cd|z|zb|zq|zqb)i?\s"){
+            # HACK: fat finger...
+           $quickZoxide.Invoke($key,$arg)
+        }
+        else{
         $invokeFunction = "Invoke-SudoPwsh"
         if ($line -match "[a-z]") {
             $invokeCommand = "$invokeFunction `"$line`""
@@ -625,7 +631,7 @@ $sudoRunParameters = @{
         [Microsoft.PowerShell.PSConsoleReadLine]::BeginningOfLine()
         [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$invokeCommand")
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
-      
+        }
     }
 }
 
