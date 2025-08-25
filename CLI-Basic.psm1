@@ -26,7 +26,7 @@ function rgj
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
     $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
 
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 10
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 20
     $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
 
     $pureStringArgs = $pureStringArgs -join $patternBetween
@@ -51,7 +51,7 @@ function rgo() {
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
     $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
 
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 10
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 20
     $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
 
     $pureStringArgs = $pureStringArgs -join $patternBetween
@@ -64,7 +64,7 @@ function igo() {
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
     $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
 
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 10
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 20
     $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
 
     $pureStringArgs = $pureStringArgs -join $patternBetween
@@ -77,7 +77,7 @@ function igj() {
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
     $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
 
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 10
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 20
     $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
 
     $pureStringArgs = $pureStringArgs -join $patternBetween
@@ -154,10 +154,10 @@ function zqi {
     Invoke-Expression  "zoxide query -i $($args -join " ")"
 }
 function zb {
-    Invoke-Expression  "z $(zqb ($args -join ' '))"
+    Invoke-Expression  "z $(zqb ($($args -join ' ')))"
 }
 function zbi {
-    Invoke-Expression  "z $(zqbi ($args -join ' '))"
+    Invoke-Expression  "z $(zqbi ($($args -join ' ')))"
 }
 function zqb {
     Invoke-Expression  "zoxide query $($args -join " ") --base-dir $pwd"
@@ -205,25 +205,25 @@ function xcb {
 }
 
 function rb {
-    just build ($args.Length ? "$args -join ' '" : $null)
+    just build ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rt {
-    just test ($args.Length ? "$args -join ' '" : $null)
+    just test ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rr {
-    just run ($args.Length ? "$args -join ' '" : $null)
+    just run ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rfmt {
-    just format ($args.Length ? "$args -join ' '" : $null)
+    just format ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rd {
-    just deploy ($args.Length ? "$args -join ' '" : $null)
+    just deploy ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rs {
-    just seek ($args.Length ? "$args -join ' '" : $null)
+    just seek ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rw {
-    just watch ($args.Length ? "$args -join ' '" : $null)
+    just watch ($args.Length ? "$($args -join ' ')" : $null)
 }
 
 function re {
@@ -289,4 +289,4 @@ function ncget(
     }
 }
 
-Set-Alias -Name bc -Value fend -Scope Global -Option AllScope
+# Set-Alias -Name bc -Value fend -Scope Global -Option AllScope

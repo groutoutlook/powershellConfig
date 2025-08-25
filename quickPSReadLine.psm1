@@ -14,7 +14,7 @@ $ggSearchParameters = @{
         
         # HACK: have to perform one silent check to route those.
         $searchFunction = "Search-DuckDuckGo" 
-        rg -q "$($line -join ' ')" $HOME/hw/obs && Set-Variable -Name searchFunction -Value "rgj"
+        # rg -q "$($line -join ' ')" $HOME/hw/obs && Set-Variable -Name searchFunction -Value "rgj"
        
         $process_string = {
             param($line)
@@ -359,6 +359,7 @@ $JrnlParameters = @{
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
             [ref]$cursor)
         $defaultValue = 2
+        $line = $line.Trim()
         $editPattern = '\d+e$'
         if ($line -match "^j\s*$") {
             # INFO: most recent jrnl 
@@ -432,6 +433,7 @@ $HistorySearchGlobalParameters = @{
         $defaultValue = 8
 
         # NOTE: should have used LSP for this instead.
+        $line = $line.Trim()
         $originalCommand = $line -split " "
 
         if($originalCommand.Count -lt 2){
@@ -521,20 +523,29 @@ $rgToNvimParameters = @{
         $cursor = $null
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
             [ref]$cursor)
+        $line.Trim()
         if ($line -match '^rg') {
             # INFO: Replace could actually increase the length of original strings.
             # So I could be longer than the start.
             [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "ig")
         }
+        elseif($line -match '^id'){
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "iid")
+        }
         else {
             # INFO: check history for the latest match commands
             $SearchWithQuery = Get-History -Count 40 `
             | Sort-Object -Property Id -Descending `
-            | Where-Object { $_.CommandLine -match "^rg" }
+            | Where-Object { $_.CommandLine -match "^(rg|id)" }
             | Select-Object -Index 0 `
 
             [Microsoft.PowerShell.PSConsoleReadLine]::Insert($SearchWithQuery)
-            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "ig")
+            if ($line -match '^rg') {
+                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "ig")
+            }
+            else{
+                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "iid")
+            }
         }
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
       
