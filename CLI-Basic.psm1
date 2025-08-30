@@ -10,26 +10,25 @@ function omniSearchObsidian {
     Start-Process "obsidian://omnisearch?query=$query" &
 }
 
-# function ig() {
-#     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-#     $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
-#     $command = "ig $dashArgs `"$pureStringArgs`""
-#     Invoke-Expression $command
-# }
-
-function rgj
-(
-)
-{
-    # INFO: Im so lazy typing .* everytime. for space you should type \s. or wrap in quotes. 
-    
+$argsBuilder = {
+    # TODO: better use something type safe other than all $args like this.
     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
     $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
 
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 20
-    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
-
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : $pureStringArgs[-1] -as [int] ?? 20
+    if ($pureStringArgs[-1] -as [int] -and $pureStringArgs.Count -ge 2) {
+        $pureStringArgs = $pureStringArgs[0..($pureStringArgs.Count - 2)]
+    }
+    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{0,$WithinAmount}?"
     $pureStringArgs = $pureStringArgs -join $patternBetween
+
+    return $pureStringArgs , $dashArgs
+}
+
+function rgj
+(
+) {
+    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
     $command = "rg `"$pureStringArgs`" -g '*Journal.md' (zoxide query obs) -M 400 -A3 $dashArgs"
     Invoke-Expression $command
 
@@ -48,40 +47,20 @@ function rgj
 
 # HACK: rg in vault's other files.
 function rgo() { 
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
-
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 20
-    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
-
-    $pureStringArgs = $pureStringArgs -join $patternBetween
+    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
     $command = "rg `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) -M 400 -C0 $dashArgs"
     Invoke-Expression $command
 }
 
 # HACK: rg in vault's other files.
 function igo() { 
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
-
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 20
-    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
-
-    $pureStringArgs = $pureStringArgs -join $patternBetween
-
+    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
     $command = "ig `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
     Invoke-Expression $command
 }
 
 function igj() {
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
-
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : 20
-    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{1,$WithinAmount}"
-
-    $pureStringArgs = $pureStringArgs -join $patternBetween
-
+    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
     $command = "ig `"$pureStringArgs`"  -g '*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
     Invoke-Expression $command
 }
@@ -141,12 +120,10 @@ function Get-PathFromFiles() {
 }
 
 function zsh {
-    # INFO: Since I set an experimental flag in powershell which evaluate the ~ symbol. No need to cd to ~ anymore.
     wsl $args --cd ~
-    # wsl
 }
 
-# INFO: since some of the cli utils take quote as exact match, have to invoke  like this.
+# INFO: since some of the cli utils take quote as exact match, have to invoke like this.
 function zq {
     Invoke-Expression "zoxide query $($args -join " ")" 
 }
@@ -184,20 +161,6 @@ function ccb {
     $isPath = Test-Path $clipboardContent
     if ($isPath) {
         code --goto "$clipboardContent$lineNumber"
-    }
-    else {
-        Write-Error "Not Path, check again."
-    }
-}
-
-# INFO: same for helix.
-function xcb {
-    $clipboardContent = Get-Clipboard
-    if ($args -ne $null) { $lineNumber = ":" + ($args -join ":") }
-    else { $lineNumber = ":1" }
-    $isPath = Test-Path $clipboardContent
-    if ($isPath) {
-        hx "$clipboardContent$lineNumber"
     }
     else {
         Write-Error "Not Path, check again."
@@ -288,5 +251,3 @@ function ncget(
         Write-Host "nothing came up...? Timeout." -ForegroundColor Red
     }
 }
-
-# Set-Alias -Name bc -Value fend -Scope Global -Option AllScope

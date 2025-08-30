@@ -10,7 +10,7 @@ function quickDeInitGit($repo_name = "$(Split-Path $pwd -Leaf)", $remote = "gh",
     gh repo delete $repo_name
 }
 
-function Select-RepoLink{
+function Select-RepoLink {
     param($url = (Get-Clipboard))
     
     # HACK: Real hack is extracting links from the Markdown links.
@@ -27,10 +27,10 @@ function Select-RepoLink{
         # INFO: here we trim the `?.*` queries part of the URL.
         $trimmedQueryURI = $processedLink -replace "\?.*", "" -replace "/tree/.*", ""
         $repoName = Split-Path $trimmedQueryURI -Leaf
-        return $trimmedQueryURI,$repoName
+        return $trimmedQueryURI, $repoName
     }
-    else{
-        return $null,$null
+    else {
+        return $null, $null
     }
 }
 
@@ -38,9 +38,8 @@ function gitCloneClipboard(
     $finalDir = $null, 
     $url = (Get-Clipboard),
     $gitOptions 
-) 
-    {
-    if ($trimmedQueryURI,$repoName = Select-RepoLink $url) {
+) {
+    if ($trimmedQueryURI, $repoName = Select-RepoLink $url) {
         git clone --recursive $gitOptions ($trimmedQueryURI) $finalDir && cd $repoName
     }
     else {

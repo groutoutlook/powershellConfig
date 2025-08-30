@@ -90,22 +90,22 @@ $parsing_id = {
     $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }
     Write-Verbose "id: $id" 
 
-    $void,$repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" |
-    % { Select-RepoLink $_ }
+    $void, $repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" |
+        % { Select-RepoLink $_ }
     Write-Verbose "Repo name: $repoName"
 
     # INFO: id can fallback to reponame.
-    if($preferString){
+    if ($preferString) {
         $id = $repoName ?? $id
     }
-    else{
+    else {
         $id = $id ?? $repoName
     }
     return $id
 }
 
 # NOTE: wrap input in single quote
-function Select-ID{
+function Select-ID {
     param (
         [Parameter(
             # Mandatory = $true,
@@ -116,7 +116,7 @@ function Select-ID{
         [switch]$preferString,
         $idLength = 4
     )
-    $id = $parsing_id.Invoke($url,$AllMatches,$preferString,$idLength)
+    $id = $parsing_id.Invoke($url, $AllMatches, $preferString, $idLength)
 
     if ($id.GetType().Name -eq "Object[]") {
         $id | % { rgj $_ } 
@@ -141,7 +141,7 @@ function Invoke-SelectedID(
     $idLength = 4
 ) {
     
-    $id = $parsing_id.Invoke($url,$AllMatches,$preferString,$idLength)
+    $id = $parsing_id.Invoke($url, $AllMatches, $preferString, $idLength)
     if ($id.GetType().Name -eq "Object[]") {
         $finalQuery = $id -join "|"
         igj "$finalQuery"

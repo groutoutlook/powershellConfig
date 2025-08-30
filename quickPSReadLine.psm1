@@ -192,7 +192,7 @@ $DoubleQuotesNestedBracketParameter = @{
 
 
 $QuickZoxideParameters = @{
-    Key              = @('alt+z','ctrl+shift+z')
+    Key              = @('alt+z', 'ctrl+shift+z')
     BriefDescription = 'Quick zoxide Mode'
     LongDescription  = 'quick zoxide opened.'
     ScriptBlock      = $quickZoxide
@@ -436,13 +436,13 @@ $HistorySearchGlobalParameters = @{
         $line = $line.Trim()
         $originalCommand = $line -split " "
 
-        if($originalCommand.Count -lt 2){
-        Get-Content -Tail 200 (Get-PSReadLineOption).HistorySavePath `
-        | Select-String -Pattern '^j\s+(?:\w|\:)' `
-        | fzf --query '^j ' `
-        | ForEach-Object { $finalOptions = $_ + " $($defaultValue)e" }
+        if ($originalCommand.Count -lt 2) {
+            Get-Content -Tail 200 (Get-PSReadLineOption).HistorySavePath `
+            | Select-String -Pattern '^j\s+(?:\w|\:)' `
+            | fzf --query '^j ' `
+            | ForEach-Object { $finalOptions = $_ + " $($defaultValue)e" }
         }
-        else{
+        else {
             $finalOptions = " 6 | b -lmd"
         }
         [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$finalOptions")
@@ -529,7 +529,7 @@ $rgToNvimParameters = @{
             # So I could be longer than the start.
             [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "ig")
         }
-        elseif($line -match '^id'){
+        elseif ($line -match '^id') {
             [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "iid")
         }
         else {
@@ -539,13 +539,13 @@ $rgToNvimParameters = @{
             | Where-Object { $_.CommandLine -match "^(rg|id)" }
             | Select-Object -Index 0 `
 
+            if ($SearchWithQuery -match '^rg') {
+                $SearchWithQuery = $SearchWithQuery -replace '^rg', "ig"
+            }
+            elseif ($SearchWithQuery -match '^id') {
+                $SearchWithQuery = $SearchWithQuery -replace '^id', "iid"
+            }
             [Microsoft.PowerShell.PSConsoleReadLine]::Insert($SearchWithQuery)
-            if ($line -match '^rg') {
-                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "ig")
-            }
-            else{
-                [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "iid")
-            }
         }
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
       
@@ -621,27 +621,27 @@ $sudoRunParameters = @{
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
             [ref]$cursor)
 
-        if($line.Trim() -match "^(cd|z|zb|zq|zqb)i?\s"){
+        if ($line.Trim() -match "^(cd|z|zb|zq|zqb)i?\s") {
             # HACK: fat finger...
-           $quickZoxide.Invoke($key,$arg)
-        }
-        else{
-        $invokeFunction = "Invoke-SudoPwsh"
-        if ($line -match "[a-z]") {
-            $invokeCommand = "$invokeFunction `"$line`""
+            $quickZoxide.Invoke($key, $arg)
         }
         else {
-            $invokeCommand = "$invokeFunction `"$(Get-History -Count 1)`""
-        }
+            $invokeFunction = "Invoke-SudoPwsh"
+            if ($line -match "[a-z]") {
+                $invokeCommand = "$invokeFunction `"$line`""
+            }
+            else {
+                $invokeCommand = "$invokeFunction `"$(Get-History -Count 1)`""
+            }
 
-        # Invoke-Expression $invokeCommand
+            # Invoke-Expression $invokeCommand
     
-        # HACK: Just revert the line and brute force printing the line again in console.
-        # Ugly way but worked.
-        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-        [Microsoft.PowerShell.PSConsoleReadLine]::BeginningOfLine()
-        [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$invokeCommand")
-        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+            # HACK: Just revert the line and brute force printing the line again in console.
+            # Ugly way but worked.
+            [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+            [Microsoft.PowerShell.PSConsoleReadLine]::BeginningOfLine()
+            [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$invokeCommand")
+            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
         }
     }
 }
