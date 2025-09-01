@@ -48,11 +48,6 @@ function :m {
 
 Set-Alias :mo Restart-ModuleList 
 
-function :backup($Verbose = $null) {
-    Import-Module -Name $env:dotfilesRepo\BackupModule.psm1
-    Backup-Environment $Verbose && Backup-Extensive $Verbose
-}
-Set-Alias -Name :bak -Value :backup
 # NOTE: neovim trigger function.
 function :v {
     $codeEditor = "nvim"
