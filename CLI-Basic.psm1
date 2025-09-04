@@ -228,6 +228,14 @@ function tree() {
     eza --hyperlink -T -L=2 $args 
     Write-Host "depth flags : -L=2" -ForegroundColor Green
 }
+function tre() {
+    lstr --hyperlinks --icons -gG -s -L=2 --dirs-first --natural-sort $args
+    Write-Host "depth flags : -L=2" -ForegroundColor Green
+}
+function trei() {
+    lstr interactive --icons -gG -s --dirs-first --natural-sort $args
+    Write-Host "depth flags : -L=2" -ForegroundColor Green
+}
 
 Set-Alias -Name nc -Value ncat -Scope Global -Option AllScope
 function ncput(

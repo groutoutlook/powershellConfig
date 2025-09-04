@@ -615,32 +615,34 @@ $sudoRunParameters = @{
     {
         param($key, $arg)   # The arguments are ignored in this example
 
-        # GetBufferState gives us the command line (with the cursor position)
         $line = $null
         $cursor = $null
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
             [ref]$cursor)
-
-        if ($line.Trim() -match "^(cd|z|zb|zq|zqb)i?\s") {
+        
+        # INFO: I literally buffer a history in here.
+        $historyAlternative = "$(Get-History -Count 1)"
+        if ($line.Trim(), $historyAlternative -match "^(cd|z|zb|zq|zqb)i?\s") {
             # HACK: fat finger...
             $quickZoxide.Invoke($key, $arg)
         }
         else {
             $invokeFunction = "Invoke-SudoPwsh"
             if ($line -match "[a-z]") {
-                $invokeCommand = "$invokeFunction `"$line`""
+                $invokeCommand = "$invokeFunction `'$line`'"
             }
             else {
-                $invokeCommand = "$invokeFunction `"$(Get-History -Count 1)`""
+                if ($historyAlternative.Trim() -match "^($invokeFunction)") {
+                    $invokeCommand = "$historyAlternative"
+                }
+                else {
+
+                    $invokeCommand = "$invokeFunction `'$historyAlternative`'"
+                }
             }
 
-            # Invoke-Expression $invokeCommand
-    
             # HACK: Just revert the line and brute force printing the line again in console.
-            # Ugly way but worked.
-            [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-            [Microsoft.PowerShell.PSConsoleReadLine]::BeginningOfLine()
-            [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$invokeCommand")
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $invokeCommand)
             [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
         }
     }
@@ -649,7 +651,7 @@ $sudoRunParameters = @{
 
 # HACK: combine both Bakwardkillword and forwardkillword(alt+D) 
 $smartKillWordParameters = @{
-    Key              = 'Ctrl+w'
+    Key              = 'Ctrl+Backspace', 'Ctrl+w'
     BriefDescription = 'Smarter kill word '
     LongDescription  = 'Call sudo on current command or latest command in history.'
     ScriptBlock      = {
@@ -670,32 +672,6 @@ $smartKillWordParameters = @{
         }
     }
 }
-
-
-## HACK: combine both Bakwardkillword and forwardkillword(alt+D) 
-$ExtraKillWordParameters = @{
-    Key              = 'Ctrl+Backspace'
-    BriefDescription = 'Smarter kill word '
-    LongDescription  = 'Call sudo on current command or latest command in history.'
-    ScriptBlock      = {
-        param($key, $arg)   # The arguments are ignored in this example
-
-        # GetBufferState gives us the command line (with the cursor position)
-        $line = $null
-        $cursor = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
-            [ref]$cursor)
-     
-        #Info 
-        if ($cursor -eq 0) {
-            [Microsoft.PowerShell.PSConsoleReadLine]::KillWord()
-        }
-        else {
-            [Microsoft.PowerShell.PSConsoleReadLine]::BackwardKillWord()
-        }
-    }
-}
-
 
 $ExtraKillWord1Parameters = @{
     Key              = 'Alt+w'
@@ -719,8 +695,6 @@ $ExtraKillWord1Parameters = @{
         }
     }
 }
-
-
 
 $helpParameter = @{
     Key              = 'ctrl+b'
@@ -814,7 +788,6 @@ $MathExpressionParameter = @{
     }
 
 }
-
 
 
 $ParenthesesParameter = @{
@@ -1172,7 +1145,6 @@ $HandlerParameters = @(
     , $HistorySearchGlobalParameters
     , $sudoRunParameters
     , $smartKillWordParameters
-    , $ExtraKillWordParameters
     , $ExtraKillWord1Parameters
     , $ParenthesesParameter
     , $ParenthesesAllParameter
