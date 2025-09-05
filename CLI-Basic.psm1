@@ -19,7 +19,15 @@ $argsBuilder = {
     if ($pureStringArgs[-1] -as [int] -and $pureStringArgs.Count -ge 2) {
         $pureStringArgs = $pureStringArgs[0..($pureStringArgs.Count - 2)]
     }
-    $patternBetween = $WithinAmount -eq 0 ? ".*" : ".{0,$WithinAmount}?"
+    $patternBetween = $WithinAmount -eq 0 ? ".*?" : ".{0,$WithinAmount}?"
+
+    # I want to search multiple lines.
+    if ($pureStringArgs[-1] -eq "*n") {
+        $pureStringArgs = $pureStringArgs[0..($pureStringArgs.Count - 2)]
+        $patternBetween = '.*?\n.*?' 
+        $dashArgs += ' -U'
+    }
+    
     $pureStringArgs = $pureStringArgs -join $patternBetween
 
     return $pureStringArgs , $dashArgs

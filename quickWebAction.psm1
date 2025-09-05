@@ -81,18 +81,30 @@ function Search-DuckDuckGo {
 Set-Alias -Name dg -Value Search-DuckDuckGo
 Set-Alias -Name gg -Value Search-DuckDuckGo
 $parsing_id = {
-    param ($url,
+    param (
+        $idLength = 4,
+        $url,
         [switch]$AllMatches,
         [switch]$preferString,
-        $idLength = 4
+        [switch]$exactLength
     )
-
-    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$idLength,}" | % { $_.Matches.Value }
-    Write-Verbose "id: $id" 
 
     $void, $repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" |
         % { Select-RepoLink $_ }
     Write-Verbose "Repo name: $repoName"
+    $lowerBound = $idLength
+
+    if ($exactLength -eq $true) {
+        $upperBound = $idLength
+    }
+    else {
+        $upperBound = ""
+    }
+    # stackexchange mode...
+    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$lowerBound,$upperBound}" | % { $_.Matches.Value }
+    # TODO: lobster use something as base64 for their ID system?
+    # $id = $url | sls -All:$AllMatches "[0-9a-zA-Z]{$idLength,}" | % { $_.Matches.Value }
+    Write-Verbose "id: $id" 
 
     # INFO: id can fallback to reponame.
     if ($preferString) {
@@ -107,6 +119,7 @@ $parsing_id = {
 # NOTE: wrap input in single quote
 function Select-ID {
     param (
+        $idLength = 4,
         [Parameter(
             # Mandatory = $true,
             ValueFromPipeline = $true
@@ -114,23 +127,25 @@ function Select-ID {
         $url = (Get-Clipboard),
         [switch]$AllMatches,
         [switch]$preferString,
-        $idLength = 4
+        [switch]$exactLength
     )
-    $id = $parsing_id.Invoke($url, $AllMatches, $preferString, $idLength)
+    
+    $id = $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength)
 
     if ($id.GetType().Name -eq "Object[]") {
         $id | % { rgj $_ } 
     }
     else {
-        rgj $id
+        if ($null -ne $id) { rgj $id }
+        else { Write-Error "Nothing..." }
     }
 }
-
 
 Set-Alias -Name id -Value Select-ID
 
 # NOTE: wrap input in single quote
 function Invoke-SelectedID(
+    $idLength = 4,
     [Parameter(
         # Mandatory = $true,
         ValueFromPipeline = $true
@@ -138,10 +153,11 @@ function Invoke-SelectedID(
     $url = (Get-Clipboard),
     [switch]$AllMatches,
     [switch]$preferString,
-    $idLength = 4
+    [switch]$exactLength
 ) {
     
-    $id = $parsing_id.Invoke($url, $AllMatches, $preferString, $idLength)
+    $id = $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength)
+
     if ($id.GetType().Name -eq "Object[]") {
         $finalQuery = $id -join "|"
         igj "$finalQuery"
