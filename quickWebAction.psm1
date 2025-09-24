@@ -89,29 +89,58 @@ $parsing_id = {
         [switch]$exactLength
     )
 
-    $void, $repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" |
-        % { Select-RepoLink $_ }
-    Write-Verbose "Repo name: $repoName"
+    # INFO: Extract domain from URL
+    # TODO: may build a regex pattern which concatenated both id... although I think we need to do this in pipeline.
+    try {
+        $urls =@([regex]::matches($url, '(https?://[^\s]+)') | ForEach-Object { $_.Value -replace "\)",""})
+        $uri = [uri]::new($urls[0])
+        $host = $uri.Host.ToLower()
+        if ($host.StartsWith('www.')) {
+            $domain = $host.Substring(4)
+        }
+        else {
+            $domain = $host
+        }
+    }
+    catch {
+        Write-Verbose "Invalid URL format: $url"
+        return $null
+    }
+
+    # Default variables for fallback
     $lowerBound = $idLength
+    $upperBound = if ($exactLength) { $idLength } else { "" }
 
-    if ($exactLength -eq $true) {
-        $upperBound = $idLength
-    }
-    else {
-        $upperBound = ""
-    }
-    # stackexchange mode...
-    $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$lowerBound,$upperBound}" | % { $_.Matches.Value }
-    # TODO: lobster use something as base64 for their ID system?
-    # $id = $url | sls -All:$AllMatches "[0-9a-zA-Z]{$idLength,}" | % { $_.Matches.Value }
-    Write-Verbose "id: $id" 
-
-    # INFO: id can fallback to reponame.
-    if ($preferString) {
-        $id = $repoName ?? $id
-    }
-    else {
-        $id = $id ?? $repoName
+    switch ($domain) {
+        'news.ycombinator.com' {
+            # Extract id from query 'id' parameter (HN case)
+            $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
+            $id = $query['id']
+        }
+        'lobste.rs' {
+            # Extract last path segment (Lobsters case)
+            $segments = $uri.Segments | ForEach-Object { $_.TrimEnd('/') }
+            $id = $segments[2]
+        }
+        {$_ -in 'github.com','gitlab.com','codeberg.org','sourceforge.net','bitbucket.org','sr.ht'}{
+            # Use existing repo name extraction for these repos
+            $void, $repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" | % { Select-RepoLink $_ }
+            Write-Verbose "Repo name: $repoName"
+            # Also try fallback ID extraction via regex in URLs
+            $idFallback = $url | sls -All:$AllMatches "[0-9a-fA-F]{$lowerBound,$upperBound}" | % { $_.Matches.Value }
+            
+            if ($preferString) {
+                return $repoName ?? $idFallback
+            }
+            else {
+                return $idFallback ?? $repoName
+            }
+        }
+        default {
+            # Generic fallback matching pattern (hexadecimal strings of length)
+            $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$lowerBound,$upperBound}" | % { $_.Matches.Value }
+            Write-Verbose "id (generic fallback): $id"
+        }
     }
     return $id
 }
@@ -124,7 +153,7 @@ function Select-ID {
             # Mandatory = $true,
             ValueFromPipeline = $true
         )]
-        $url = (Get-Clipboard),
+        [string]$url = (Get-Clipboard),
         [switch]$AllMatches,
         [switch]$preferString,
         [switch]$exactLength
@@ -132,12 +161,16 @@ function Select-ID {
     
     $id = $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength)
 
+    if ($null -eq $id) { 
+        Write-Error "nothing in here."
+        return
+    }
+    
     if ($id.GetType().Name -eq "Object[]") {
         $id | % { rgj $_ } 
     }
     else {
-        if ($null -ne $id) { rgj $id }
-        else { Write-Error "Nothing..." }
+        rgj $id
     }
 }
 
