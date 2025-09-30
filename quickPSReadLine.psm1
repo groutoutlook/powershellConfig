@@ -3,7 +3,7 @@ using namespace System.Management.Automation
 using namespace System.Management.Automation.Language
 # $RLModule = [Microsoft.PowerShell.PSConsoleReadLine]
 $ggSearchParameters = @{
-    Key              = 'Ctrl+s'
+    Key              = 'Ctrl+s,Ctrl+w'
     BriefDescription = 'Web Search Mode'
     LongDescription  = 'Maybe other search function, but who knows.'
     ScriptBlock      = {
@@ -36,7 +36,7 @@ $ggSearchParameters = @{
 }
 
 $VaultSearchParameters = @{
-    Key              = 'Ctrl+shift+s'
+    Key              = 'Ctrl+s,Ctrl+s'
     BriefDescription = 'Vault Search Mode'
     LongDescription  = 'Maybe other search function, but who knows.'
     ScriptBlock      = {
