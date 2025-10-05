@@ -38,3 +38,32 @@ function reverse {
     [string]$resarr = $arr -join $delimiter
     echo $resarr
 }
+
+function Split-Batch
+{
+param (
+    [UInt64]$Size = [UInt64]::MaxValue,
+    [Parameter(Mandatory=$true, ValueFromPipeline=$true)]$InputObject
+)
+begin {
+    $Batch = [Collections.Generic.List[object]]::new() # is faster as [Collections.ObjectModel.Collection[psobject]]
+}
+process {
+    if ($Size) {
+        if ($Batch.get_Count() -ge $Size) {
+            ,@($Batch)
+            $Batch = [Collections.Generic.List[object]]::new()
+        }
+        $Batch.Add($_)
+    }
+    else { # if no size is provided, any top array will be unrolled (remove batches)
+        $_
+    }
+}
+End {
+    if ($Batch.get_Count()) {
+        ,@($Batch)
+    }
+}
+}
+
