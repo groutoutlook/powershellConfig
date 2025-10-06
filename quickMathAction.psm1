@@ -67,3 +67,7 @@ End {
 }
 }
 
+
+
+Set-Alias solve qalc
+

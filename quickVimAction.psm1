@@ -481,6 +481,10 @@ function :jrnl {
 }
 Set-Alias -Name j -Value :jrnl
 
+function jvc{
+    j vc 10
+}
+
 # INFO: call `Get-UniqueEntryJrnl table` to get current jrnltable list.
 function Get-UniqueEntryJrnl {
     $jrnlYamlPath = "~/.config/jrnl/jrnl.yaml"
