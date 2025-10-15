@@ -112,53 +112,43 @@ function filterURI(
     $stripUnplay = 'usual'
 ) {
     $link = $strings
-    if (($link -match ' *^\[\p{L}') -or ($link -match '^.*-.*\[\p{L}')) {
-        # Write-Host "Markdown Link" -ForegroundColor Green 
-        $processedLink = ($link | Select-String "-.*").Matches.Value 
-        $markdownName = ($processedLink | Select-String '^.*\[(.*)\]').Matches.Value
-        # echo $markdownName
-        $processedLink = ($processedLink | Select-String 'http.*').Matches.Value -replace '\)$', ""
-        if ($processedLink -notmatch '^http') {
-            Write-Host 'Somehow Invalid' -ForegroundColor Red  
-            # echo $processedLink
-            return $null
-        }
-        $stripPattern = '&dontwanttoplaytoomuchman'
-        switch ($stripUnplay) {
-            'usual' {
-                if ($processedLink -match $stripPattern) {
-                    return $null
-                }
-                else {
-                    return $markdownName + "`n" + $processedLink
-                }
-            }
-            'rarely' {
-                if ($processedLink -match $stripPattern) {
-                    return $markdownName + "`n" + $processedLink -replace $stripPattern, ""
-                }
-                else {
-                    return $null
-                }
-            }
-            'all' {
-                if ($processedLink -match $stripPattern) {
-                    return $markdownName + "`n" + $processedLink -replace $stripPattern, ""
-                }
-                else {
-                    return $markdownName + "`n" + $processedLink
-                }
-            }
-            
-            
-        }       
-    }
-    elseif ($link -match '^http') {
-        Write-Host "Plain link" -ForegroundColor Yellow 
-        return $link  
-    }
-    else {
+    # Markdown link like [title](url)
+    $match = [regex]::Match($link, '\[(?<text>[^\]]+)\]\((?<url>[^)]+)\)')
+    if (-not $match.Success) {
         return $null
+    }
+    $markdownName = $match.Groups['text'].Value
+    $processedLink = $match.Groups['url'].Value.Trim()
+    if ($processedLink -notmatch '^https?://') {
+        Write-Host 'Somehow Invalid' -ForegroundColor Red
+        return $null
+    }
+    $stripPattern = '&dontwanttoplaytoomuchman'
+    switch ($stripUnplay) {
+        'usual' {
+            if ($processedLink -match $stripPattern) {
+                return $null
+            }
+            else {
+                return $markdownName + "`n" + $processedLink
+            }
+        }
+        'rarely' {
+            if ($processedLink -match $stripPattern) {
+                return $markdownName + "`n" + $processedLink -replace $stripPattern, ""
+            }
+            else {
+                return $null
+            }
+        }
+        'all' {
+            if ($processedLink -match $stripPattern) {
+                return $markdownName + "`n" + $processedLink -replace $stripPattern, ""
+            }
+            else {
+                return $markdownName + "`n" + $processedLink
+            }
+        }
     }
 }
 function Restart-Job {
@@ -247,9 +237,13 @@ function swap_prompt {
     }
 }
 
+function Resolve-ClipboardPath {
+    rvpa (gcb) | tee \\.\CON | scb
+}
 
 
 
+Set-Alias -Name rvcb -Value Resolve-ClipboardPath
 Set-Alias -Name cdsl -Value Set-LocationSymLink	
 Set-Alias -Name rsjb -Value Restart-Job
 Set-Alias -Name jpa -Value Join-Path -Scope Global -Option AllScope

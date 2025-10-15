@@ -13,15 +13,13 @@ function quickDeInitGit($repo_name = "$(Split-Path $pwd -Leaf)", $remote = "gh",
 function Select-RepoLink {
     param($url = (Get-Clipboard))
     
+    
     # HACK: Real hack is extracting links from the Markdown links.
-    if ($url -match '^\[') {
-        $processedLink = $url -replace '^\[(.*)\]\(', "" -replace '\)$', "" 
-    }
-    else {
-        $processedLink = $url 
+    $processedLink = $url
+    if ($filtered = filterURI -strings $url -stripUnplay 'all') {
+        $processedLink = ($filtered -split "`n")[-1]
     }
     $processedLink = $processedLink -replace "#.*", ""
-    $processedLink = $processedLink -replace "/issues\?.*", "" -replace "/pulls\?.*", ""
 
     if ($processedLink -match "^https") {
         # INFO: here we trim the `?.*` queries part of the URL.
