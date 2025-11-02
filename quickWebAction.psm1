@@ -92,7 +92,7 @@ $parsing_id = {
     # INFO: Extract domain from URL
     # TODO: may build a regex pattern which concatenated both id... although I think we need to do this in pipeline.
     try {
-        $urls =@([regex]::matches($url, '(https?://[^\s]+)') | ForEach-Object { $_.Value -replace "\)",""})
+        $urls = @([regex]::matches($url, '(https?://[^\s]+)') | ForEach-Object { $_.Value -replace "\)", "" })
         $uri = [uri]::new($urls[0])
         $host = $uri.Host.ToLower()
         if ($host.StartsWith('www.')) {
@@ -122,7 +122,7 @@ $parsing_id = {
             $segments = $uri.Segments | ForEach-Object { $_.TrimEnd('/') }
             $id = $segments[2]
         }
-        {$_ -in 'github.com','gitlab.com','codeberg.org','sourceforge.net','bitbucket.org','sr.ht'}{
+        { $_ -in 'github.com', 'gitlab.com', 'codeberg.org', 'sourceforge.net', 'bitbucket.org', 'sr.ht' } {
             # Use existing repo name extraction for these repos
             $void, $repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" | % { Select-RepoLink $_ }
             Write-Verbose "Repo name: $repoName"

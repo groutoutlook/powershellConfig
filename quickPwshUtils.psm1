@@ -237,15 +237,21 @@ function swap_prompt {
     }
 }
 
-function Resolve-ClipboardPath {
-    rvpa (gcb) | tee \\.\CON | scb
+function Resolve-ClipboardPath ($path = (gcb)) {
+    rvpa ($path -replace '"') | scb
+    return (gcb)
 }
 
+function Invoke-ShimClipboardPath {
+    shim (rvcb) | tee \\.\CON 
+    return (gcb)
+}
 
-
+Set-Alias -Name shcb -Value Invoke-ShimClipboardPath
 Set-Alias -Name rvcb -Value Resolve-ClipboardPath
 Set-Alias -Name cdsl -Value Set-LocationSymLink	
 Set-Alias -Name rsjb -Value Restart-Job
+Set-Alias -Name spa -Value Split-Path -Scope Global -Option AllScope
 Set-Alias -Name jpa -Value Join-Path -Scope Global -Option AllScope
 # HACK: alias `Measure-Command`, it's hyperfine but in dotnet environment.
 Set-Alias -Name mcm -Value Measure-Command

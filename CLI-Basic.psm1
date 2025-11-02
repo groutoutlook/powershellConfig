@@ -156,6 +156,9 @@ function ze {
 function za {
     Invoke-Expression "zoxide add $($args -join " ")" 
 }
+function zaa($path = $pwd) {
+    gci $path | % { za $_ && Write-Host "Add Path $_ to zoxide database." }
+}
 
 Set-Alias zo zq
 Set-Alias zoi zqi
