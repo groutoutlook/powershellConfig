@@ -237,8 +237,11 @@ function swap_prompt {
     }
 }
 
+
+
 function Resolve-ClipboardPath ($path = (gcb)) {
-    rvpa ($path -replace '"') | scb
+    $getPath = {rvpa ($path -replace '"')}
+    ((& $getPath) || (Write-Warning "Nothing here.. Back 1 dir." && cd- && (& $getPath))) | scb
     return (gcb)
 }
 
