@@ -8,7 +8,7 @@ function global:Backup-Environment($Verbose = $null) {
 function P7() {
     Invoke-Expression (&starship init powershell)
     Invoke-Expression (& { (zoxide init powershell | Out-String) })
-    Get-ChildItem Alias:/rd | Out-Null && Remove-Item Alias:rd 
+    Get-ChildItem Alias:/rd | Out-Null && Remove-Item Alias:rd -ErrorAction SilentlyContinue
     Set-Alias -Name cd -Value z -Scope Global -Option AllScope 
     Set-Alias -Name cdi -Value zi -Scope Global -Option AllScope 
 }
@@ -201,7 +201,6 @@ function addPath {
         [Alias("d")]
         $dirList = $pwd,
 
-  
         [Parameter(Mandatory = $false)]
         [Alias("p")]
         $parent = $null
@@ -224,8 +223,8 @@ function global:initProfileEnv {
     [Console]::InputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
     $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
 
-    $Env:ProgramFilesD = "D:\Program Files"
-    $Env:ProgramDataD = "D:\ProgramDataD"
+    # $Env:ProgramFilesD = "D:\Program Files"
+    # $Env:ProgramDataD = "D:\ProgramDataD"
     $Env:dotfilesRepo = "$Env:ProgramDataD\dotfiles"
 
     $Env:p7settingDir = "D:\ProgramDataD\MiscLang\24.01-PowerShell\proj\powershellConfig"
@@ -234,7 +233,6 @@ function global:initProfileEnv {
 	
     $diradd = @(
         $Env:usrbinD
-        , $Env:PhotoshopDir
         , $Env:pipxLocalDir
     )
     foreach ($d in $diradd) {
@@ -244,11 +242,13 @@ function global:initProfileEnv {
 
 # INFO: cd- and cd--, same logic with cd+ and cd++
 function cd-($rep = 1) {
+    if ($rep -le 0) {return} # Since I use that in scripts... it can underflow somehow.
     foreach ($i in (1..$rep)) {
         Set-Location -
     }
 }
 function cd+($rep = 1) {
+    if ($rep -le 0) {return} 
     foreach ($i in (1..$rep)) {
         Set-Location +
     }

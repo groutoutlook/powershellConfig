@@ -230,24 +230,35 @@ function quickSymLink($path = (Get-Clipboard)) {
         Write-Error "$path not a valid path."
     }
 }
-
 function swap_prompt {
     function global:prompt {
         echo "nothing, just PS:"
     }
 }
 
-
-
 function Resolve-ClipboardPath ($path = (gcb)) {
-    $getPath = {rvpa ($path -replace '"')}
-    ((& $getPath) || (Write-Warning "Nothing here.. Back 1 dir." && cd- && (& $getPath))) | scb
+    $getPath = { return rvpa ($path -replace '"') -ErrorAction SilentlyContinue }
+    for ($recursion_count = 0; -not ($resolved = & $getPath) -and $recursion_count -lt 3; $recursion_count++) {
+        (Write-Warning "Nothing here.. Back 1 dir." && cd- && ($resolved = & $getPath)) 
+    }
+    cd+ $recursion_count
+    if ($resolved) {
+        Set-Clipboard $resolved && Write-Host "OK." -Fore Green
+        return $resolved
+    }
+    else {
+        Write-Error "Cannot resolve $path in clipboard(?)."
+    }
+}
+
+function Invoke-ShimClipboardPath ($path = (gcb)) {
+    shim (rvcb $path) | tee \\.\CON 
     return (gcb)
 }
 
-function Invoke-ShimClipboardPath {
-    shim (rvcb) | tee \\.\CON 
-    return (gcb)
+
+function Get-TypeInfo{
+    Get-Member -Input $args
 }
 
 Set-Alias -Name shcb -Value Invoke-ShimClipboardPath
@@ -261,4 +272,5 @@ Set-Alias -Name mcm -Value Measure-Command
 Set-Alias -Name rmrf -Value Remove-FullForce 
 Set-Alias -Name cprf -Value Copy-FullForce
 Set-Alias -Name cpcb -Value Copy-FullForce
+Set-Alias -Name gti -Value Get-TypeInfo
 # Export-ModuleMember -Function * -Alias *

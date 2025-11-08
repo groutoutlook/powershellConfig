@@ -45,7 +45,8 @@ function Get-Playlistmpv(
             (Get-Content -Tail $tail $playlist_file) + (Get-Content -Head $head $playlist_file) |
                 ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
         }
-        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0 --sub-pos=20
+        # mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0 --sub-pos=20
+        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20
     }
     elseif ($Mode -eq "b") {
         $query = 'spacing'
