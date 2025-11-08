@@ -236,7 +236,30 @@ function swap_prompt {
     }
 }
 
+function Convert-PathToOsc8 {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [Alias('FullName', 'LiteralPath', 'PSPath')]
+        [string]$Path,
+        [string]$DisplayText
+    )
+
+    process {
+        $resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+        $uri = [System.Uri]::new($resolved.ProviderPath)
+        $textValue = if ($DisplayText) { $DisplayText -replace ' ', '%20' } else { $resolved.Path }
+        Format-Hyperlink $textValue $uri.AbsoluteUri
+    }
+}
+
 function Resolve-ClipboardPath ($path = (gcb)) {
+
+    $isInteractive = ($PSCmdlet.MyInvocation.PipelineLength -le 1) -and
+    -not [Console]::IsOutputRedirected -and
+    -not [Console]::IsErrorRedirected -and
+    -not [Console]::IsInputRedirected
+
     $getPath = { return rvpa ($path -replace '"') -ErrorAction SilentlyContinue }
     for ($recursion_count = 0; -not ($resolved = & $getPath) -and $recursion_count -lt 3; $recursion_count++) {
         (Write-Warning "Nothing here.. Back 1 dir." && cd- && ($resolved = & $getPath)) 
@@ -244,7 +267,12 @@ function Resolve-ClipboardPath ($path = (gcb)) {
     cd+ $recursion_count
     if ($resolved) {
         Set-Clipboard $resolved && Write-Host "OK." -Fore Green
-        return $resolved
+        if ($isInteractive) {
+            Write-Output (Convert-PathToOsc8 -Path ($resolved.ToString()))
+        }
+        else {
+            Write-Output $resolved
+        }
     }
     else {
         Write-Error "Cannot resolve $path in clipboard(?)."
