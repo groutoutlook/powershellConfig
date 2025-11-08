@@ -242,13 +242,13 @@ function global:initProfileEnv {
 
 # INFO: cd- and cd--, same logic with cd+ and cd++
 function cd-($rep = 1) {
-    if ($rep -le 0) {return} # Since I use that in scripts... it can underflow somehow.
+    if ($rep -le 0) { return } # Since I use that in scripts... it can underflow somehow.
     foreach ($i in (1..$rep)) {
         Set-Location -
     }
 }
 function cd+($rep = 1) {
-    if ($rep -le 0) {return} 
+    if ($rep -le 0) { return } 
     foreach ($i in (1..$rep)) {
         Set-Location +
     }

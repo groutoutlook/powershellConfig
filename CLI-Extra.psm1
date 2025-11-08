@@ -20,6 +20,7 @@ function Get-Playlistmpv(
     $head = @(1, 0),
     [ValidateSet('usual', 'rarely', 'all')]
     $stripUnplay = 'usual',
+    [string]$stringSearch = "",
     $videoOption = "1",
     $Mode = "normal"
 ) {
@@ -31,11 +32,14 @@ function Get-Playlistmpv(
         Remove-Item $global:playlistTemp -ErrorAction SilentlyContinue -Force
     }
     New-Item $global:playlistTemp
-
     if ($Mode -match "^n") {
         $playlist_file = fd --hyperlink musicj --base-directory="$(zoxide query obs)" 
         $playlist_file = Join-Path -Path "$(zoxide query obs)" -ChildPath $playlist_file
-        if ($tail -is [array]) {
+        if ($stringSearch -ne "") {
+            $finalPattern = $stringSearch -join ".*"
+            rg $finalPattern $jtb["ms"] -C3 | % { filterURI $_ $stripUnplay >> $global:playlistTemp }
+        }
+        elseif ($tail -is [array]) {
             $tailFile = Get-Content -Tail $tail[0] $playlist_file
             $headFile = Get-Content -Head $head[0] $playlist_file
             ($headFile[0..($head[1])] + $tailFile[0..($tail[1])]) |

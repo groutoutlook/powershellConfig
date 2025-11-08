@@ -257,7 +257,7 @@ function Invoke-ShimClipboardPath ($path = (gcb)) {
 }
 
 
-function Get-TypeInfo{
+function Get-TypeInfo {
     Get-Member -Input $args
 }
 
