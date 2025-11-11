@@ -260,18 +260,32 @@ function Resolve-ClipboardPath ($path = (gcb)) {
     -not [Console]::IsErrorRedirected -and
     -not [Console]::IsInputRedirected
 
-    $getPath = { return rvpa ($path -replace '"') -ErrorAction SilentlyContinue }
-    for ($recursion_count = 0; -not ($resolved = & $getPath) -and $recursion_count -lt 3; $recursion_count++) {
-        (Write-Warning "Nothing here.. Back 1 dir." && cd- && ($resolved = & $getPath)) 
+    $getPath = { return Resolve-Path ($path -replace '"') -ErrorAction SilentlyContinue }
+    $resolved = & $getPath
+    if (-not $resolved) {
+        $originalLocation = Get-Location
+        try {
+            $recursionCount = 0
+            while (-not $resolved -and $recursionCount -lt 3) {
+                cd-
+                Write-Warning "Nothing here.. Back 1 dir at $pwd"
+                $recursionCount++
+                $resolved = & $getPath
+            }
+        }
+        finally {
+            Set-Location $originalLocation
+        }
     }
-    cd+ $recursion_count
+    
     if ($resolved) {
         Set-Clipboard $resolved && Write-Host "OK." -Fore Green
         if ($isInteractive) {
-            Write-Output (Convert-PathToOsc8 -Path ($resolved.ToString()))
+            Write-Host (Convert-PathToOsc8 -Path ($resolved.ToString()))
+            return $resolved
         }
         else {
-            Write-Output $resolved
+            return $resolved
         }
     }
     else {
@@ -281,9 +295,8 @@ function Resolve-ClipboardPath ($path = (gcb)) {
 
 function Invoke-ShimClipboardPath ($path = (gcb)) {
     shim (rvcb $path) | tee \\.\CON 
-    return (gcb)
+    # return (gcb)
 }
-
 
 function Get-TypeInfo {
     Get-Member -Input $args
