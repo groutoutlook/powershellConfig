@@ -85,15 +85,50 @@ function yz {
 }
 Set-Alias -Name zz -Value yz
 
-function Invoke-SudoPwsh (
-    [string]$command, # TODO: could be a ScriptBlock.
-    [switch]$haveProfile 
-) {
-    if ($haveProfile) {
-        sudo --inline pwsh -NoLogo -NonInteractive -ExecutionPolicy Bypass -Command "$command"
+function Invoke-SudoPwsh {
+        [CmdletBinding()]
+    param(
+        [Parameter(Position = 0)]
+        [string]$Command,
+        [switch]$HaveProfile,
+        [Parameter(ValueFromPipeline = $true)]
+        [object]$InputObject,
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [object[]]$CommandArgs
+    )
+    begin {
+        $pwshArgs = @('-NoLogo', '-NonInteractive', '-ExecutionPolicy', 'Bypass')
+        if (-not $HaveProfile) {
+            $pwshArgs = @('-NoProfile') + $pwshArgs
+        }
+
+        if ($Command) {
+            if ($CommandArgs) {
+                $Command += ' ' + ($CommandArgs | ForEach-Object { '"{0}"' -f ($_ -replace '"', '\"') }) -join ' '
+            }
+            $pwshArgs += '-Command', $Command
+        }
+        elseif ($CommandArgs) {
+            $pwshArgs += '-Command', ($CommandArgs | ForEach-Object { '"{0}"' -f ($_ -replace '"', '\"') }) -join ' '
+        }
+
+        $sudoArgs = @('--inline', 'pwsh') + $pwshArgs
+        $buffer = [System.Collections.Generic.List[object]]::new()
     }
-    else {
-        sudo --inline pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$command"
+
+    process {
+        # INFO: this is all a kind of string builder, to build this:
+        # `sudo --inline pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$command"`
+        $buffer.Add($InputObject)
+    }
+
+    end {
+        if ($buffer.Count -gt 0) {
+            $buffer.ToArray() | sudo @sudoArgs
+        }
+        else {
+            sudo @sudoArgs
+        }
     }
 }
 # INFO: mousemaster or something related to mouse controlling

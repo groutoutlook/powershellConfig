@@ -170,33 +170,33 @@ public class WindowControl {
 "@
 
 # INFO: if there were any need for passing $args, wrap it in double quotes.
-function ss {
-    # Hide the current terminal window
-    $currentProcess = [System.Diagnostics.Process]::GetCurrentProcess()
-    $windowHandle = $currentProcess.MainWindowHandle
-    if ($windowHandle -ne [IntPtr]::Zero -and [WindowControl]::IsWindow($windowHandle)) {
-        echo "Correct for now."
-        [WindowControl]::ShowWindow($windowHandle, [WindowControl]::SW_HIDE)
-    }
-    else {
-        # HACK: fallback to alt+tab
-        [System.Windows.Forms.SendKeys]::SendWait("%{ESC}")
-        echo "alt tab...?"
-    }
-    sleep 1
-
-    Start-Process -FilePath screencapture -ArgumentList "--lang:en $($args -join `" `")" -Wait
-    # Restore the window
-    if ($windowHandle -ne [IntPtr]::Zero -and [WindowControl]::IsWindow($windowHandle)) {
-        echo "wait...?"
-        [WindowControl]::ShowWindow($windowHandle)
-    }
-    else {
-        # HACK: fallback to alt+esc.
-        [System.Windows.Forms.SendKeys]::SendWait("%{TAB}")
-    }
-}
-
+# function ss {
+#     # Hide the current terminal window
+#     $currentProcess = [System.Diagnostics.Process]::GetCurrentProcess()
+#     $windowHandle = $currentProcess.MainWindowHandle
+#     if ($windowHandle -ne [IntPtr]::Zero -and [WindowControl]::IsWindow($windowHandle)) {
+#         echo "Correct for now."
+#         [WindowControl]::ShowWindow($windowHandle, [WindowControl]::SW_HIDE)
+#     }
+#     else {
+#         # HACK: fallback to alt+tab
+#         [System.Windows.Forms.SendKeys]::SendWait("%{ESC}")
+#         echo "alt tab...?"
+#     }
+#     sleep 1
+#
+#     Start-Process -FilePath screencapture -ArgumentList "--lang:en $($args -join `" `")" -Wait
+#     # Restore the window
+#     if ($windowHandle -ne [IntPtr]::Zero -and [WindowControl]::IsWindow($windowHandle)) {
+#         echo "wait...?"
+#         [WindowControl]::ShowWindow($windowHandle)
+#     }
+#     else {
+#         # HACK: fallback to alt+esc.
+#         [System.Windows.Forms.SendKeys]::SendWait("%{TAB}")
+#     }
+# }
+#
 function androidDevEnv {
     $Env:P7AndroidDir = (Join-Path -Path $env:p7settingDir -ChildPath "adb_p7")
     Import-Module -Name (Join-Path -Path $Env:P7AndroidDir -ChildPath "ADB_BasicModule.psm1") -Scope Global 
