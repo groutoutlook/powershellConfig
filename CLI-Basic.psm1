@@ -86,7 +86,7 @@ function yz {
 Set-Alias -Name zz -Value yz
 
 function Invoke-SudoPwsh {
-        [CmdletBinding()]
+    [CmdletBinding()]
     param(
         [Parameter(Position = 0)]
         [string]$Command,
