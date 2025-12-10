@@ -305,3 +305,29 @@ function ncget(
         Write-Host "nothing came up...? Timeout." -ForegroundColor Red
     }
 }
+
+function pcb {
+    $targets = $args
+    if ($targets.Count -eq 0) {
+        $targets = @(Get-Clipboard)
+    }
+
+    foreach ($file in $targets) {
+        if ([string]::IsNullOrWhiteSpace($file)) { continue }
+
+        # Remove potential quotes from string paths
+        $file = $file -replace '"', ''
+        
+        if (-not (Test-Path $file)) {
+             Write-Warning "File not found: $file"
+             continue
+        }
+
+        $ext = [System.IO.Path]::GetExtension($file)
+        switch -Regex ($ext) {
+            '\.(kicad_pcb|pcbdoc)$' { & pcbnew $file }
+            '\.(kicad_sch|schdoc)$' { & eeschema $file }
+            default { Write-Warning "Unknown file type for KiCad: $file" }
+        }
+    }
+}
