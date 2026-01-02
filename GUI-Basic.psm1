@@ -52,7 +52,7 @@ public static class TaskbarNative {
     }
 
     $appBarData = [APPBARDATA]::new()
-    $appBarData.cbSize = [Runtime.InteropServices.Marshal]::SizeOf([APPBARDATA])
+    $appBarData.cbSize = [Runtime.InteropServices.Marshal]::SizeOf([APPBARDATA]::new())
     $appBarData.hWnd = $taskbarHandle
 
     if ($Action -eq "Hide") {
