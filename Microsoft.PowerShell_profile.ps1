@@ -10,6 +10,7 @@ function P7() {
     # function prompt {
     #     prmt --code $LASTEXITCODE '{path:cyan} {git:purple} {python:yellow:m: 🐍} {time:dim}\n{ok:green}{fail:red} '
     # }
+    # tv init power-shell 
     Invoke-Expression (& { (zoxide init powershell | Out-String) })
     Get-ChildItem Alias:/rd | Out-Null && Remove-Item Alias:rd -ErrorAction SilentlyContinue
     Set-Alias -Name cd -Value z -Scope Global -Option AllScope 
@@ -25,6 +26,7 @@ $global:initialModuleList = @(
 )
 
 $global:extraModuleList = @(
+    "Converter"
     "GUI-Basic"
     "CLI-Extra"
     "quickMathAction"
