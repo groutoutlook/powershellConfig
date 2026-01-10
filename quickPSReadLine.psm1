@@ -873,7 +873,7 @@ $ParenthesesAllParameter = @{
 }
 
 $DoubleQuotesParameter = @{
-    Key              = "Alt+'"
+    Key              = "Ctrl+'"
     BriefDescription = 'parentheses the selection or nearest token'
     LongDescription  = 'Wraps selected text in parentheses; if no selection, wraps the token nearest to the cursor. Cursor is placed after the closing parenthesis.'
     ScriptBlock      = {
@@ -928,10 +928,72 @@ $DoubleQuotesParameter = @{
     }
 }
 
+
+$CalculatorParameter = @{
+    Key              = "Ctrl+="
+    BriefDescription = 'bc and fend things.'
+    LongDescription  = 'Wraps selected text in parentheses for bc'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        if ($selectionStart -ne -1) {
+            $selectedText = $line.SubString($selectionStart, $selectionLength)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "bc `"$selectedText`"")
+            if ($line.Length -eq $selectionLength) { 
+                [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine() 
+            }
+            else {
+                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + 2)
+            }
+        }
+        else {
+            $ast = $null
+            $tokens = $null
+            $errors = $null
+            $cursor = $null
+            [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$ast, [ref]$tokens, [ref]$errors, [ref]$cursor)
+            $line = if ($ast.Extent) { $ast.Extent.Text } else { '' }
+            $nearestToken = $tokens | Where-Object {
+                $_.Extent.StartOffset -le $cursor -and $_.Extent.EndOffset -ge $cursor
+            } | Select-Object -First 1
+
+            if (-not $nearestToken) {
+                # If no token is under the cursor, find the closest token
+                $nearestToken = $tokens | Sort-Object {
+                    [Math]::Abs($_.Extent.StartOffset - $cursor)
+                } | Select-Object -First 1
+            }
+
+            if ($nearestToken -and 
+                $nearestToken.Extent.StartOffset -ge 0 -and 
+                $nearestToken.Extent.StartOffset -le $line.Length -and 
+                $nearestToken.Extent.EndOffset -le $line.Length) {
+                $start = $nearestToken.Extent.StartOffset
+                $length = $nearestToken.Extent.EndOffset - $start
+                $text = $nearestToken.Extent.Text
+                [Microsoft.PowerShell.PSConsoleReadLine]::Replace($start, $length, "bc `"$text`"")
+                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($start + $length + 1)
+            }
+            else {
+                # Fallback: insert () at cursor
+                [Microsoft.PowerShell.PSConsoleReadLine]::Insert('bc ""')
+                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + 1)
+            }
+        }
+    }
+}
+
 # TODO: all this should have the nearest match function implemented in alt+0 and alt+9
 
 $WrapPipeParameter = @{
-    Key              = 'Alt+\'
+    Key              = 'Ctrl+\'
     BriefDescription = 'wrap in pipe (|%{<selected one> $_})'
     LongDescription  = 'As brief.'
     ScriptBlock      = {
@@ -960,7 +1022,7 @@ $WrapPipeParameter = @{
 
 
 $SelectPipeParameter = @{
-    Key              = 'Alt+Shift+|'
+    Key              = 'Ctrl+Shift+|'
     BriefDescription = 'wrap in pipe (| select)'
     LongDescription  = 'As brief.'
     ScriptBlock      = {
@@ -988,7 +1050,7 @@ $SelectPipeParameter = @{
 
 
 $WherePipeParameter = @{
-    Key              = 'Alt+/'
+    Key              = 'Ctrl+/'
     BriefDescription = 'wrap in pipe (| ? -eq )'
     LongDescription  = 'As brief.'
     ScriptBlock      = {
@@ -1162,6 +1224,7 @@ $HandlerParameters = @(
     , $GlobalEditorSwitch
     , $MathExpressionParameter
     , $helpParameter
+    , $CalculatorParameter
 )
 # INFO: Unique for Vi mode.
 $ViHandlerParameters = @(
