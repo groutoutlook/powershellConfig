@@ -230,7 +230,7 @@ function global:initProfileEnv {
     $PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'
 
     # $Env:ProgramFilesD = "D:\Program Files"
-    # $Env:ProgramDataD = "D:\ProgramDataD"
+    $Env:ProgramDataD = "D:\ProgramDataD"
     $Env:dotfilesRepo = "$Env:ProgramDataD\dotfiles"
 
     $Env:p7settingDir = "D:\ProgramDataD\MiscLang\24.01-PowerShell\proj\powershellConfig"

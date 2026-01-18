@@ -63,13 +63,14 @@ function rgo() {
 # HACK: rg in vault's other files.
 function igo() { 
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    $command = "ig `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
+    $command = "ig `'$pureStringArgs`'  -g !'*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
     Invoke-Expression $command
 }
 
 function igj() {
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    $command = "ig `"$pureStringArgs`"  -g '*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
+    $command = "ig `'$pureStringArgs`'  -g '*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
+    # echo $command
     Invoke-Expression $command
 }
 

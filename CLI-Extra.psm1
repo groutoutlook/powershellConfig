@@ -214,6 +214,18 @@ function Start-Explorer($inputPath = (Get-Location)) {
         fpilot "$(zoi $inputPath)"
     }
 }
+
+function ytlf(
+    $uri  = (Get-Clipboard)
+){
+    function Trim-URIFragment($uri){
+        # HACK: youtube exclusive...
+        return $uri-replace"- \[.*\]\("-replace"&list=.*"         
+    }
+    $link = Trim-URIFragment $uri
+    yt-dlp --list-formats $link
+}
+
 Set-Alias -Name expl -Value Start-Explorer -Scope Global
 Set-Alias -Name exp -Value Start-Explorer -Scope Global
 Set-Alias -Name fz -Value pocof -Scope Global

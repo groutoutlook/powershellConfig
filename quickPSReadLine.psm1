@@ -847,7 +847,7 @@ $ParenthesesParameter = @{
 }
 
 $ParenthesesAllParameter = @{
-    Key              = 'Alt+9'
+    Key              = 'Ctrl+9'
     BriefDescription = 'parentheses all or the selection'
     LongDescription  = 'Wraps the selected text or the entire line in parentheses.'
     ScriptBlock      = {
