@@ -110,6 +110,9 @@ $parsing_id = {
     # Default variables for fallback
     $lowerBound = $idLength
     $upperBound = if ($exactLength) { $idLength } else { "" }
+    # Stricter hex-token pattern: require token boundaries so substrings inside words (e.g. "embedded") don't match.
+    # Example: "embedded" will NOT produce a match for a 4+ hex token ("bedd") because it's inside a larger word.
+    $hexPattern = "(?<![A-Za-z0-9_])[0-9a-fA-F]{$lowerBound,$upperBound}(?![A-Za-z0-9_])"
 
     switch ($domain) {
         'news.ycombinator.com' {
@@ -127,7 +130,7 @@ $parsing_id = {
             $void, $repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" | % { Select-RepoLink $_ }
             Write-Verbose "Repo name: $repoName"
             # Also try fallback ID extraction via regex in URLs
-            $idFallback = $url | sls -All:$AllMatches "[0-9a-fA-F]{$lowerBound,$upperBound}" | % { $_.Matches.Value }
+            $idFallback = $url | sls -All:$AllMatches $hexPattern | % { $_.Matches.Value }
             
             if ($preferString) {
                 return $repoName ?? $idFallback
@@ -138,7 +141,7 @@ $parsing_id = {
         }
         default {
             # Generic fallback matching pattern (hexadecimal strings of length)
-            $id = $url | sls -All:$AllMatches "[0-9a-fA-F]{$lowerBound,$upperBound}" | % { $_.Matches.Value }
+            $id = $url | sls -All:$AllMatches $hexPattern | % { $_.Matches.Value }
             Write-Verbose "id (generic fallback): $id"
         }
     }

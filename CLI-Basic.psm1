@@ -203,15 +203,74 @@ Set-Alias rgr scooter
 
 # INFO: vscode quick open, with line/column number
 function ccb {
-    $clipboardContent = Get-Clipboard
-    $lineNumber = ":" + ($args -join ":")
-    $isPath = Test-Path $clipboardContent
-    if ($isPath) {
-        code --goto "$clipboardContent$lineNumber"
+    $paramPath = $null
+    $paramLine = $null
+    $paramCol = $null
+
+    # Helper scriptblock to parse "path:line:col" or "path"
+    $ParsePathStr = {
+        param($str)
+        if ([string]::IsNullOrWhiteSpace($str)) { return $null }
+        # Clean quotes
+        $str = $str -replace '^"|"$','' -replace "^'|'$",''
+        
+        if (Test-Path -LiteralPath $str) { return @{ Path=$str; Line=$null; Col=$null } }
+        # Handle path:line or path:line:col
+        if ($str -match "^(.+):(\d+)(?::(\d+))?$") {
+            $p = $matches[1]
+            if (Test-Path -LiteralPath $p) {
+                return @{ Path=$p; Line=$matches[2]; Col=$matches[3] }
+            }
+        }
+        return $null
     }
-    else {
-        Write-Error "Not Path, check again."
+
+    $parsed = $null
+    $argIdx = 0
+
+    # 1. Try first arg as path
+    if ($args.Count -gt 0) {
+        $parsed = & $ParsePathStr $args[0]
+        if ($parsed) {
+            $argIdx = 1
+        }
     }
+
+    # 2. Parse overrides from remaining args
+    if ($args.Count -gt $argIdx) {
+        $paramLine = $args[$argIdx]
+    }
+    if ($args.Count -gt ($argIdx + 1)) {
+        $paramCol = $args[$argIdx + 1]
+    }
+
+    # 3. If no path from args, try clipboard
+    if (-not $parsed) {
+        $clipboardContent = Get-Clipboard | Out-String
+        if ($clipboardContent) {
+           $parsed = & $ParsePathStr $clipboardContent.Trim()
+        }
+        
+        if (-not $parsed) {
+            Write-Error "Not Path, check again."
+            return
+        }
+    }
+
+    # 4. Resolve final Line/Col
+    $fileResult = $parsed.Path
+    # If explicit line arg provided, use it. Else use embedded line.
+    $lineResult = if ($paramLine) { $paramLine } else { $parsed.Line }
+    # Same for col
+    $colResult = if ($paramCol) { $paramCol } else { $parsed.Col }
+
+    $finalArg = "$fileResult"
+    if ($lineResult) { 
+        $finalArg += ":$lineResult"
+        if ($colResult) { $finalArg += ":$colResult" }
+    }
+    
+    code --goto "$finalArg"
 }
 
 function rb {
