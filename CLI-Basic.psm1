@@ -299,6 +299,10 @@ function re {
     just -e
 }
 
+function rei {
+    just ei ($args.Length ? "$($args -join ' ')" : $null)
+}
+
 Set-Alias -Name r -Value just -Scope Global -Option AllScope
 
 # INFO: more alias.
