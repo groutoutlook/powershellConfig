@@ -282,6 +282,9 @@ function rt {
 function rr {
     just run ($args.Length ? "$($args -join ' ')" : $null)
 }
+function rrr {
+    just rr ($args.Length ? "$($args -join ' ')" : $null)
+}
 function rfmt {
     just format ($args.Length ? "$($args -join ' ')" : $null)
 }

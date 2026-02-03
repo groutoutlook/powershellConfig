@@ -165,13 +165,24 @@ function Set-LocationWhere(
                 try {
                     $ScriptContent = Get-Content "$env:LOCALAPPDATA/shims/$fileName.ps1" 
                     Write-Host $ScriptContent
-                    Write-Output $ScriptContent |`
-                            Select-Object -Index 0 |`
-                            Get-PathFromFiles | cdcb
+                    
+                    # Try to extract path from variable assignments like $path = '...'
+                    $pathLine = $ScriptContent | Where-Object { $_ -match '\$\w+\s*=\s*[''"](.+?)[''"]' }
+                    if ($pathLine) {
+                        $extractedPath = $Matches[1]
+                        Write-Host "Extracted path: $extractedPath" -ForegroundColor Cyan
+                        cdcb $extractedPath
+                    }
+                    else {
+                        # Fallback to original method
+                        Write-Output $ScriptContent |`
+                                Select-Object -Index 0 |`
+                                Get-PathFromFiles | cdcb
+                    }
                 }
                 catch {
                     Write-Error "Had tried, still failed on shim."
-                    Set-Location (Split-Path $ModulePath -Parent)	
+                    Set-Location (Split-Path $definition -Parent)	
                 }
             }
 
