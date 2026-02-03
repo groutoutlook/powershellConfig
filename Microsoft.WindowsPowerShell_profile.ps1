@@ -4,6 +4,9 @@ Set-Alias -Name :q -Value exit -Scope Global -Option AllScope
 function rr {
     r r
 }
+function rrr {
+    r rr
+}
 function rb {
     r build 
 }
