@@ -115,6 +115,11 @@ $parsing_id = {
     $hexPattern = "(?<![A-Za-z0-9_])[0-9a-fA-F]{$lowerBound,$upperBound}(?![A-Za-z0-9_])"
 
     switch ($domain) {
+        'reddit.com' {
+            if ($url -match '/comments/(?<id>[a-z0-9]+)') {
+                $id = $matches['id']
+            }
+        }
         'news.ycombinator.com' {
             # Extract id from query 'id' parameter (HN case)
             $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
