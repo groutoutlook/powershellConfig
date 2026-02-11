@@ -209,6 +209,12 @@ function Invoke-SelectedID(
 }
 Set-Alias -Name iid -Value Invoke-SelectedID
 
+function Invoke-NewsLink{
+    msedge news.social-protocols.org lobste.rs news.ycombinator.com
+}
+# INFO: due to it's hackersnews.
+Set-Alias -Name hn -Value Invoke-NewsLink
+
 # function compSearch {
 #     $query = 'https://componentsearchengine.com/search?term='
 #     $args | % { $query = $query + "$_+" }
