@@ -141,7 +141,7 @@ function rds {
     Invoke-Expression $command
     if ($null -ne $args) {    
         sleep -Milliseconds 350 
-        Send-Key "msedge" "/$joinedTerm"
+        Send-Key "$global:defaultBrowser" "/$joinedTerm"
     }
 }
 
