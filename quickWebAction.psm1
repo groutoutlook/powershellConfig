@@ -16,7 +16,7 @@ $global:lookupSite = @{
 
 # FIXME: Reason I have to use that variable because of the broken state of some browser could..
 # affect my speed for accessing things.
-$global:defaultBrowser = "msedge"
+$global:defaultBrowser = "msedge" # could also be chrome for canary feature. Like JXL.
 
 # reason to make this function is, I may need some kind of initial or something to do some opreataion after firing the query
 function hashmapMatch($argsToMatch) {
@@ -210,7 +210,7 @@ function Invoke-SelectedID(
 Set-Alias -Name iid -Value Invoke-SelectedID
 
 function Invoke-NewsLink{
-    msedge news.social-protocols.org lobste.rs news.ycombinator.com
+    Invoke-Expression "$global:defaultBrowser  news.social-protocols.org lobste.rs"
 }
 # INFO: due to it's hackersnews.
 Set-Alias -Name hn -Value Invoke-NewsLink
