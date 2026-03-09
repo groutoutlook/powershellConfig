@@ -24,6 +24,10 @@ function Get-Playlistmpv(
     $videoOption = "1",
     $Mode = "normal"
 ) {
+    if ($tail -is [string]) {
+        $stringSearch = $tail
+        $Mode = "rg"
+    }
     # HACK: in case we copy a chunk of text with newline.
     # echo ($listURI).PSobject
     $global:playlistTemp = "$HOME/mpv-playing.txt"
@@ -35,11 +39,7 @@ function Get-Playlistmpv(
     if ($Mode -match "^n") {
         $playlist_file = fd --hyperlink musicj --base-directory="$(zoxide query obs)" 
         $playlist_file = Join-Path -Path "$(zoxide query obs)" -ChildPath $playlist_file
-        if ($stringSearch -ne "") {
-            $finalPattern = $stringSearch -join ".*"
-            rg $finalPattern $jtb["ms"] -C3 | % { filterURI $_ $stripUnplay >> $global:playlistTemp }
-        }
-        elseif ($tail -is [array]) {
+        if ($tail -is [array]) {
             $tailFile = Get-Content -Tail $tail[0] $playlist_file
             $headFile = Get-Content -Head $head[0] $playlist_file
             ($headFile[0..($head[1])] + $tailFile[0..($tail[1])]) |
@@ -50,6 +50,13 @@ function Get-Playlistmpv(
                 ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
         }
         # mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0 --sub-pos=20
+        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
+    }
+    elseif ($Mode -eq "rg") {
+        if ($stringSearch -ne "") {
+            $finalPattern = $stringSearch -join ".*"
+            rg $finalPattern $jtb["ms"] -C 5 | ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
+        }
         mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
     }
     elseif ($Mode -eq "b") {

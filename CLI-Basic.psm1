@@ -398,3 +398,171 @@ function pcb {
         }
     }
 }
+
+
+# INFO: mpv related
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public class Win32DragDrop {
+    public const uint WM_DROPFILES = 0x0233;
+    public const uint GMEM_MOVEABLE = 0x0002;
+    public const uint GMEM_ZEROINIT = 0x0040;
+
+    [DllImport("user32.dll")]
+    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GlobalAlloc(uint uFlags, UIntPtr dwBytes);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GlobalLock(IntPtr hMem);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool GlobalUnlock(IntPtr hMem);
+    
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DROPFILES {
+        public int pFiles;
+        public POINT pt;
+        public bool fNC;
+        public bool fWide;
+    }
+
+    public static void DropFile(IntPtr hWnd, string filePath) {
+        if (hWnd == IntPtr.Zero) return;
+
+        byte[] bytes = Encoding.Unicode.GetBytes(filePath);
+        // structure size + string length + double null
+        int dataSize = 20 + bytes.Length + 2; 
+        
+        IntPtr hGlobal = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (UIntPtr)dataSize);
+        if (hGlobal == IntPtr.Zero) return;
+
+        IntPtr pData = GlobalLock(hGlobal);
+        try {
+            DROPFILES df = new DROPFILES();
+            df.pFiles = 20; // Offset where files list starts
+            df.fWide = true; // Unicode
+            
+            Marshal.StructureToPtr(df, pData, false);
+            // safe pointer arithmetic for older .NET
+            IntPtr strDest = new IntPtr(pData.ToInt64() + 20);
+            Marshal.Copy(bytes, 0, strDest, bytes.Length);
+        }
+        finally {
+            GlobalUnlock(hGlobal);
+        }
+
+        PostMessage(hWnd, WM_DROPFILES, hGlobal, IntPtr.Zero);
+    }
+}
+"@
+
+function Send-MpvCommand {
+    param([string]$Command)
+    
+    # Find MPV
+    $mpvProc = Get-Process -Name mpv -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+    if (-not $mpvProc) {
+        Write-Warning "MPV is not running."
+        return
+    }
+
+    # Focus MPV
+    [QuickWin32]::SetForegroundWindow($mpvProc.MainWindowHandle)
+    Start-Sleep -Milliseconds 200
+
+    # Open console
+    [System.Windows.Forms.SendKeys]::SendWait("``") 
+    Start-Sleep -Milliseconds 100
+    
+    # Type command
+    [System.Windows.Forms.SendKeys]::SendWait($Command)
+    Start-Sleep -Milliseconds 100
+    
+    # Execute
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}{ESC}")
+}
+
+function Add-LyricFile {
+    param([string]$Pattern)
+    
+    $audioDirQuery = "3-audio"
+    
+    # Resolve directory
+    try {
+        $baseDir = (zoxide query $audioDirQuery)
+    } catch {
+        Write-Warning "Could not resolve '$audioDirQuery' with zoxide."
+        return
+    }
+
+    if (-not $baseDir -or -not (Test-Path $baseDir)) {
+         Write-Warning "Directory not found for query '$audioDirQuery'."
+         return
+    }
+    
+    # Try to find the file
+    $files = Get-ChildItem -Path $baseDir -Recurse -File -Filter "*$Pattern*" | Where-Object { $_.Extension -eq ".lrc" -and $_.Name -notmatch "orig\.lrc$" }
+    
+    $targetFile = $files | Select-Object -First 1
+    
+    if (-not $targetFile) {
+        Write-Warning "No matching lyric file found."
+        return
+    }
+    
+    $filePath = $targetFile.FullName
+    Write-Host "Dropping: $filePath" -ForegroundColor Cyan
+    
+    $normalizedPath = $filePath.Replace('\', '/')
+    $command = "sub-add `"$normalizedPath`""
+
+    Send-MpvCommand -Command $command
+}
+
+function Add-NextTrack {
+    param([string]$Pattern)
+    
+    $audioDirQuery = "3-audio"
+    
+    # Resolve directory
+    try {
+        $baseDir = (zoxide query $audioDirQuery)
+    } catch {
+        Write-Warning "Could not resolve '$audioDirQuery' with zoxide."
+        return
+    }
+
+    if (-not $baseDir -or -not (Test-Path $baseDir)) {
+         Write-Warning "Directory not found for query '$audioDirQuery'."
+         return
+    }
+    
+    # Try to find the file
+    $targetFile = Get-ChildItem -Path $baseDir -Recurse -File -Filter "*$Pattern*" | Where-Object { $_.Extension -match "\.(mkv|webm)$" } | Select-Object -First 1
+    
+    if (-not $targetFile) {
+        Write-Warning "No matching audio file found."
+        return
+    }
+    
+    $filePath = $targetFile.FullName
+    Write-Host "Queueing next: $filePath" -ForegroundColor Cyan
+    
+    $normalizedPath = $filePath.Replace('\', '/')
+    $command = "loadfile `"$normalizedPath`" insert-next"
+
+    Send-MpvCommand -Command $command
+}
+

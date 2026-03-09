@@ -45,13 +45,16 @@ Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 
-public class User32 {
+public class QuickWin32 {
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetConsoleWindow();
 }
 "@
 
@@ -64,14 +67,24 @@ function Send-Key {
 
     # Find the window handle
     $hWnd = (Get-Process -ErrorAction Ignore "*$windowTitle*" ).Where({ $_.MainWindowTitle }, 'First').MainWindowHandle
-    # $hWnd = [User32]::FindWindow([NullString]::Value, $windowTitle)
+    # $hWnd = [QuickWin32]::FindWindow([NullString]::Value, $windowTitle)
     if ($hWnd -eq [IntPtr]::Zero) {
         Write-Host "Window not found!"
         return
     }
     # Set the window to the foreground, it's somehow the must.
-    [User32]::SetForegroundWindow($hWnd)
+    [QuickWin32]::SetForegroundWindow($hWnd)
     [System.Windows.Forms.SendKeys]::SendWait($keys)
+}
+
+function mpn{
+    Send-Key mpv '@'
+    [QuickWin32]::SetForegroundWindow([QuickWin32]::GetConsoleWindow())
+}
+
+function mpns{
+    Send-Key mpv '>'
+    [QuickWin32]::SetForegroundWindow([QuickWin32]::GetConsoleWindow())
 }
 
 # INFO: quick create hashmap.
@@ -151,6 +164,7 @@ function filterURI(
         }
     }
 }
+
 function Restart-Job {
     param (
         [int]$JobId
