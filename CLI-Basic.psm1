@@ -12,8 +12,18 @@ function omniSearchObsidian {
 
 $argsBuilder = {
     # TODO: better use something type safe other than all $args like this.
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) 
+    $isDashOption = {
+        param($token)
+
+        return $token -is [string] -and $token -match '^-[A-Za-z]'
+    }
+
+    $dashArgs = @($args | Where-Object { $isDashOption.Invoke($_) })
+    $pureStringArgs = @($args | Where-Object { -not $isDashOption.Invoke($_) })
+
+    if ($pureStringArgs.Count -eq 0) {
+        return "", $dashArgs
+    }
 
     $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : $pureStringArgs[-1] -as [int] ?? 20
     if ($pureStringArgs[-1] -as [int] -and $pureStringArgs.Count -ge 2) {
@@ -25,7 +35,7 @@ $argsBuilder = {
     if ($pureStringArgs[-1] -eq "*n") {
         $pureStringArgs = $pureStringArgs[0..($pureStringArgs.Count - 2)]
         $patternBetween = '.*?\n.*?' 
-        $dashArgs += ' -U'
+        $dashArgs += '-U'
     }
     
     $pureStringArgs = $pureStringArgs -join $patternBetween
@@ -36,15 +46,15 @@ $argsBuilder = {
 function rgj
 (
 ) {
+    $obsPath = zoxide query obs
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    $command = "rg `"$pureStringArgs`" -g '*Journal.md' (zoxide query obs) -M 400 -A3 $dashArgs"
-    Invoke-Expression $command
+    & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
 
     if ($? -eq $false) {
         Write-Host "not in those journal.md" -ForegroundColor Magenta
-        rg "$($args -join ".*")" -g !'*Journal.md' (zoxide query obs) -M 400
+        & rg -g !'*Journal.md' -M 400 -- ($args -join ".*") $obsPath
         if ($? -eq $false) {
-            Search-DuckDuckGo ($args -join " ") 
+            # Search-DuckDuckGo ($args -join " ") 
             Write-Host "Fall back to other search engine." -ForegroundColor Red
         }
         else {
@@ -55,23 +65,22 @@ function rgj
 
 # HACK: rg in vault's other files.
 function rgo() { 
+    $obsPath = zoxide query obs
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    $command = "rg `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) -M 400 -C0 $dashArgs"
-    Invoke-Expression $command
+    & rg -g !'*Journal.md' -M 400 -C0 @dashArgs -- $pureStringArgs $obsPath
 }
 
 # HACK: rg in vault's other files.
 function igo() { 
+    $obsPath = zoxide query obs
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    $command = "ig `'$pureStringArgs`'  -g !'*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
-    Invoke-Expression $command
+    & ig -g !'*Journal.md' --context-viewer=horizontal @dashArgs -- $pureStringArgs $obsPath
 }
 
 function igj() {
+    $obsPath = zoxide query obs
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    $command = "ig `'$pureStringArgs`'  -g '*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
-    # echo $command
-    Invoke-Expression $command
+    & ig -g '*Journal.md' --context-viewer=horizontal @dashArgs -- $pureStringArgs $obsPath
 }
 
 # INFO: yazi quick call.

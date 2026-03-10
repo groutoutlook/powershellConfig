@@ -21,7 +21,7 @@ $global:defaultBrowser = "msedge" # could also be chrome for canary feature. Lik
 # reason to make this function is, I may need some kind of initial or something to do some opreataion after firing the query
 function hashmapMatch($argsToMatch) {
     $appendix = $global:lookupSite[$argsToMatch]
-    if ( $appendix -ne $null) {
+    if ($null -ne $appendix) {
         $argsToMatch = $appendix
     } 
     return $argsToMatch
@@ -68,18 +68,72 @@ function Search-DuckDuckGo {
     $filteredArgsString = $filteredArgs -join "+"
     if ($exclamationArray.count -eq 0) {
         $exQuery = 'https://www.duckduckgo.com/?q=' + $filteredArgsString 
-        Invoke-Expression "$global:defaultBrowser $exQuery"
+        Start-Process -FilePath $global:defaultBrowser -ArgumentList $exQuery
     }
     else {
         foreach ($exArg in $exclamationArray) {
             $exQuery = 'https://www.duckduckgo.com/?q=' + $filteredArgsString + "+" + $exArg
-            Invoke-Expression "$global:defaultBrowser $exQuery"
+            Start-Process -FilePath $global:defaultBrowser -ArgumentList $exQuery
         }
     }
 }
 
 Set-Alias -Name dg -Value Search-DuckDuckGo
 Set-Alias -Name gg -Value Search-DuckDuckGo
+
+function Resolve-InputUrl {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+
+    if (Get-Command -Name filterURI -ErrorAction SilentlyContinue) {
+        $filtered = filterURI -strings $Text -stripUnplay 'all'
+        if ($filtered) {
+            return ($filtered -split "`n")[-1]
+        }
+    }
+
+    $match = [regex]::Match($Text, 'https?://[^\s)]+')
+    if ($match.Success) {
+        return $match.Value
+    }
+
+    return $null
+}
+
+function Resolve-InputUri {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+
+    try {
+        $resolvedUrl = Resolve-InputUrl -Text $Text
+        if (-not $resolvedUrl) {
+            return $null
+        }
+
+        return [uri]::new($resolvedUrl)
+    }
+    catch {
+        Write-Verbose "Invalid URL format: $Text"
+        return $null
+    }
+}
+
+function Get-ParsedId {
+    param(
+        $idLength = 4,
+        [string]$url = (Get-Clipboard),
+        [switch]$AllMatches,
+        [switch]$preferString,
+        [switch]$exactLength
+    )
+
+    return $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength)
+}
+
 $parsing_id = {
     param (
         $idLength = 4,
@@ -91,20 +145,18 @@ $parsing_id = {
 
     # INFO: Extract domain from URL
     # TODO: may build a regex pattern which concatenated both id... although I think we need to do this in pipeline.
-    try {
-        $urls = @([regex]::matches($url, '(https?://[^\s]+)') | ForEach-Object { $_.Value -replace "\)", "" })
-        $uri = [uri]::new($urls[0])
-        $host = $uri.Host.ToLower()
-        if ($host.StartsWith('www.')) {
-            $domain = $host.Substring(4)
-        }
-        else {
-            $domain = $host
-        }
-    }
-    catch {
-        Write-Verbose "Invalid URL format: $url"
+    $uri = Resolve-InputUri -Text $url
+    if ($null -eq $uri) {
         return $null
+    }
+
+    $resolvedUrl = $uri.AbsoluteUri
+    $uriHostName = $uri.DnsSafeHost.ToLower()
+    if ($uriHostName.StartsWith('www.')) {
+        $domain = $uriHostName.Substring(4)
+    }
+    else {
+        $domain = $uriHostName
     }
 
     # Default variables for fallback
@@ -114,7 +166,9 @@ $parsing_id = {
     # Example: "embedded" will NOT produce a match for a 4+ hex token ("bedd") because it's inside a larger word.
     $hexPattern = "(?<![A-Za-z0-9_])[0-9a-fA-F]{$lowerBound,$upperBound}(?![A-Za-z0-9_])"
 
-    switch ($domain) {
+    $switchDomain = if ($domain -match '(^|\.)taobao\.com$') { 'taobao.com' } else { $domain }
+
+    switch ($switchDomain) {
         'reddit.com' {
             if ($url -match '/comments/(?<id>[a-z0-9]+)') {
                 $id = $matches['id']
@@ -132,21 +186,50 @@ $parsing_id = {
         }
         { $_ -in 'github.com', 'gitlab.com', 'codeberg.org', 'sourceforge.net', 'bitbucket.org', 'sr.ht' } {
             # Use existing repo name extraction for these repos
-            $void, $repoName = $url | sls "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" | % { Select-RepoLink $_ }
+            $void, $repoName = $resolvedUrl | Select-String "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" | ForEach-Object { Select-RepoLink $_ }
             Write-Verbose "Repo name: $repoName"
             # Also try fallback ID extraction via regex in URLs
-            $idFallback = $url | sls -All:$AllMatches $hexPattern | % { $_.Matches.Value }
+            $idFallback = $resolvedUrl | Select-String -All:$AllMatches $hexPattern | ForEach-Object { $_.Matches.Value }
             
             if ($preferString) {
-                return $repoName ?? $idFallback
+                if ($null -ne $repoName) {
+                    return $repoName
+                }
+
+                return $idFallback
             }
             else {
-                return $idFallback ?? $repoName
+                if ($null -ne $idFallback) {
+                    return $idFallback
+                }
+
+                return $repoName
+            }
+        }
+        'taobao.com' {
+            if ($uriHostName -match '^shop(?<id>\d+)\.taobao\.com$') {
+                $id = $matches['id']
+                break
+            }
+
+            $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
+            if ($query['id']) {
+                $id = $query['id']
+                break
+            }
+
+            if ($query['user_number_id']) {
+                $id = $query['user_number_id']
+                break
+            }
+
+            if ($resolvedUrl -match '(?<!\d)(?<id>\d{6,})(?!\d)') {
+                $id = $matches['id']
             }
         }
         default {
             # Generic fallback matching pattern (hexadecimal strings of length)
-            $id = $url | sls -All:$AllMatches $hexPattern | % { $_.Matches.Value }
+            $id = $resolvedUrl | Select-String -All:$AllMatches $hexPattern | ForEach-Object { $_.Matches.Value }
             Write-Verbose "id (generic fallback): $id"
         }
     }
@@ -167,7 +250,7 @@ function Select-ID {
         [switch]$exactLength
     )
     
-    $id = $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength)
+    $id = Get-ParsedId -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
 
     if ($null -eq $id) { 
         Write-Error "nothing in here."
@@ -197,7 +280,12 @@ function Invoke-SelectedID(
     [switch]$exactLength
 ) {
     
-    $id = $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength)
+    $id = Get-ParsedId -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
+
+    if ($null -eq $id) {
+        Write-Error "nothing in here."
+        return
+    }
 
     if ($id.GetType().Name -eq "Object[]") {
         $finalQuery = $id -join "|"
