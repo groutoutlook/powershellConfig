@@ -95,25 +95,26 @@ $quickZoxide = {
 
     $process_string = {
         param($line)
-        $existedCd = "cd|z|zb|zq|zqb"
         $jumpTable = @{
-            'zi'   = 'zb'
-            'zqi'  = 'zqb'
-            'zqbi' = 'zb'
-            'zbi'  = 'z'
-            'cdi'  = 'zb'
+            'cd'   = 'cdb'
+            'cdb'  = 'cdi'
+            'cdi'  = 'cdbi'
+            'cdbi' = 'cd'
+            'z'    = 'zb'
+            'zb'   = 'zi'
+            'zi'   = 'zbi'
+            'zbi'   = 'z'
+            'zq'   = 'zqb'
+            'zqb'  = 'zqi'
+            'zqi'  = 'zqbi'
+            'zqbi' = 'zq'
         }
+        $existedCd = ($jumpTable.Keys | Sort-Object Length -Descending) -join '|'
 
         switch -Regex ($line) {
-            "^(${existedCd})i\s" {
-                $matchString = $Matches[0].TrimEnd()
-                $SearchWithQuery = $line -replace "${matchString} ", "$($jumpTable[$matchString]) "
-                break;
-            }
-
             "^(${existedCd})(\s|$)" {
                 $matchString = $Matches[1]
-                $SearchWithQuery = $line -replace "${matchString} ", "${matchString}i "
+                $SearchWithQuery = $line -replace "^${matchString}(?=\s|$)", $jumpTable[$matchString]
                 break
             }
             default {
@@ -622,7 +623,7 @@ $sudoRunParameters = @{
         
         # INFO: I literally buffer a history in here.
         $historyAlternative = "$(Get-History -Count 1)"
-        if ($line.Trim(), $historyAlternative -match "^(cd|z|zb|zq|zqb)i?\s") {
+        if ($line.Trim(), $historyAlternative -match "^(cd|z|zb|zq|zqb)[bi]?\s") {
             # HACK: fat finger...
             $quickZoxide.Invoke($key, $arg)
         }

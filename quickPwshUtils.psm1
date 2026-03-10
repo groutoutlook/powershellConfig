@@ -26,9 +26,10 @@ function Show-Window {
         [Parameter(Mandatory)]
         [string] $ProcessName
     )
+    
     $ProcessName = $ProcessName -replace '\.exe$'
 
-    $b = (Get-Process -ErrorAction Ignore "*$ProcessName*").Where({ $_.MainWindowTitle })
+    $b = (Get-Process -ErrorAction Ignore "*$ProcessName*").Where({ $_.MainWindowTitle}) | ? ProcessName -ne 'SystemSettings' 
     $c = $b | % ProcessName | fzf --select-1 --exit-0 --bind one:accept | % { $b | ? Name -EQ $_ }
     $procId = $c.ID
     if (-not $procId) {
