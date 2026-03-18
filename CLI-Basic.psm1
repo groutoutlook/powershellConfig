@@ -318,7 +318,6 @@ function rei {
 Set-Alias -Name r -Value just -Scope Global -Option AllScope
 
 # INFO: more alias.
-Set-Alias -Name b -Value bat
 Set-Alias -Name top -Value btm
 Set-Alias -Name du -Value dust
 Set-Alias -Name less -Value tspin
@@ -575,3 +574,20 @@ function Add-NextTrack {
     Send-MpvCommand -Command $command
 }
 
+# HACK: a wrapper for bat
+function b {
+    $hasXlsx = $false
+    foreach ($arg in $args) {
+        if ($arg -match '\.xlsx$') {
+            $hasXlsx = $true
+            break
+        }
+    }
+
+    if ($hasXlsx) {
+        Write-Host "Warning: abnormal file type (xlsx), using xleak instead" -ForegroundColor Yellow
+        xleak @args
+    } else {
+        bat @args
+    }
+}
