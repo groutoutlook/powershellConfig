@@ -294,9 +294,31 @@ function Resolve-ClipboardPath ($path = (gcb)) {
     }
     
     if ($resolved) {
+        $resolvedPath = $resolved.ToString()
+
+        if (Test-Path -LiteralPath $resolvedPath -PathType Leaf) {
+            $extension = [System.IO.Path]::GetExtension($resolvedPath).ToLowerInvariant()
+            if (@('.7z', '.bz2', '.cab', '.csv', '.doc', '.docx', '.gz', '.iso', '.jar', '.msi', '.ods', '.odt', '.pdf', '.ppt', '.pptx', '.rar', '.tar', '.xls', '.xlsm', '.xlsx', '.zip') -contains $extension) {
+                $answer = Read-Host "'$extension' looks like a file you probably want copied like Explorer. Use Set-FileClipboard? [Y/n]"
+                if ($answer -notmatch '^(n|no)$') {
+                    if (Get-Command -Name 'Set-FileClipboard' -ErrorAction SilentlyContinue) {
+                        Set-FileClipboard $resolvedPath
+                        Write-Host 'File copied to Explorer clipboard.' -ForegroundColor Green
+                        if ($isInteractive) {
+                            Write-Host (Convert-PathToOsc8 -Path $resolvedPath)
+                        }
+
+                        return $resolved
+                    }
+
+                    Write-Warning 'Set-FileClipboard not found. Falling back to text clipboard.'
+                }
+            }
+        }
+
         Set-Clipboard $resolved && Write-Host "OK." -Fore Green
         if ($isInteractive) {
-            Write-Host (Convert-PathToOsc8 -Path ($resolved.ToString()))
+            Write-Host (Convert-PathToOsc8 -Path $resolvedPath)
             return $resolved
         }
         else {

@@ -503,7 +503,7 @@ function Send-MpvCommand {
 }
 
 function Add-LyricFile {
-    param([string]$Pattern)
+    param([string]$Pattern,[int]$delay)
     
     $audioDirQuery = "3-audio"
     
@@ -537,6 +537,13 @@ function Add-LyricFile {
     $command = "sub-add `"$normalizedPath`""
 
     Send-MpvCommand -Command $command
+
+    if($delay -ne $null){
+        $command = "set sub-delay $delay/1000"
+        Send-MpvCommand -Command $Command
+    }
+        
+
 }
 
 function Add-NextTrack {

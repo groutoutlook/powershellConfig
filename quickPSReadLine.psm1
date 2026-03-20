@@ -983,9 +983,9 @@ $CalculatorParameter = @{
                 [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($start + $length + 1)
             }
             else {
-                # Fallback: insert () at cursor
                 [Microsoft.PowerShell.PSConsoleReadLine]::Insert('bc ""')
-                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + 1)
+                # move cursor in between the quotes
+                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + 4)
             }
         }
     }
