@@ -503,7 +503,7 @@ function Send-MpvCommand {
 }
 
 function Add-LyricFile {
-    param([string]$Pattern,[int]$delay)
+    param([string]$Pattern,$delay)
     
     $audioDirQuery = "3-audio"
     
@@ -583,18 +583,34 @@ function Add-NextTrack {
 
 # HACK: a wrapper for bat
 function b {
-    $hasXlsx = $false
-    foreach ($arg in $args) {
-        if ($arg -match '\.xlsx$') {
-            $hasXlsx = $true
-            break
-        }
+    [CmdletBinding(PositionalBinding = $false)]
+    param(
+        [Parameter(ValueFromPipeline = $true)]
+        [object]$InputObject,
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [object[]]$RemainingArgs
+    )
+
+    begin {
+        $buffer = [System.Collections.Generic.List[object]]::new()
     }
 
-    if ($hasXlsx) {
-        Write-Host "Warning: abnormal file type (xlsx), using xleak instead" -ForegroundColor Yellow
-        xleak @args
-    } else {
-        bat @args
+    process {
+        if ($null -ne $InputObject) { $buffer.Add($InputObject) }
+    }
+
+    end {
+        if ($buffer.Count -gt 0) {
+            $buffer.ToArray() | bat @RemainingArgs
+            return
+        }
+
+        if ($RemainingArgs | Where-Object { $_ -is [string] -and $_ -match '\.xlsx$' } | Select-Object -First 1) {
+            Write-Host "Warning: abnormal file type (xlsx), using xleak instead" -ForegroundColor Yellow
+            xleak @RemainingArgs
+            return
+        }
+
+        bat @RemainingArgs
     }
 }
