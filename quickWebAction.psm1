@@ -1,11 +1,11 @@
 $global:lookupSite = @{
-    "reddit"     =  "site%3Areddit.com"
-    "rd"         =  "site%3Areddit.com"
-    "hackernews" =  "site%3Anews.ycombinator.com"
-    "hn"         =  "site%3Anews.ycombinator.com"
-    "gh"         =  "site%3Agithub.com"
-    "gist"       =  "site%3Agist.github.com"
-    "gits"       =  "site%3Agist.github.com"
+    "reddit"     = "site%3Areddit.com"
+    "rd"         = "site%3Areddit.com"
+    "hackernews" = "site%3Anews.ycombinator.com"
+    "hn"         = "site%3Anews.ycombinator.com"
+    "gh"         = "site%3Agithub.com"
+    "gist"       = "site%3Agist.github.com"
+    "gits"       = "site%3Agist.github.com"
     "so"         = "site%3Astackoverflow.com"
     "st"         = "site%3Astackexchange.com"
     "su"         = "site%3Asuperuser.com"
@@ -166,12 +166,19 @@ $parsing_id = {
     # Example: "embedded" will NOT produce a match for a 4+ hex token ("bedd") because it's inside a larger word.
     $hexPattern = "(?<![A-Za-z0-9_])[0-9a-fA-F]{$lowerBound,$upperBound}(?![A-Za-z0-9_])"
 
-    $switchDomain = if ($domain -match '(^|\.)taobao\.com$') { 'taobao.com' } else { $domain }
+    $switchDomain = if ($domain -match '(^|\.)taobao\.com$') { 'taobao.com' } elseif ($domain -match '(^|\.)wikipedia\.org$') { 'wikipedia.org' } else { $domain }
 
     switch ($switchDomain) {
         'reddit.com' {
             if ($url -match '/comments/(?<id>[a-z0-9]+)') {
                 $id = $matches['id']
+            }
+        }
+        'wikipedia.org' {
+            $segments = $uri.Segments | ForEach-Object { $_.Trim('/') }
+            $wikiIndex = [Array]::IndexOf($segments, 'wiki')
+            if ($wikiIndex -ge 0 -and $wikiIndex + 1 -lt $segments.Count) {
+                $id = [uri]::UnescapeDataString($segments[$wikiIndex + 1]).ToLowerInvariant()
             }
         }
         'news.ycombinator.com' {
@@ -297,7 +304,7 @@ function Invoke-SelectedID(
 }
 Set-Alias -Name iid -Value Invoke-SelectedID
 
-function Invoke-NewsLink{
+function Invoke-NewsLink {
     Invoke-Expression "$global:defaultBrowser  news.social-protocols.org lobste.rs"
 }
 # INFO: due to it's hackersnews.
