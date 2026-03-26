@@ -223,11 +223,11 @@ function Start-Explorer($inputPath = (Get-Location)) {
 }
 
 function ytlf(
-    $uri  = (Get-Clipboard)
-){
-    function Trim-URIFragment($uri){
+    $uri = (Get-Clipboard)
+) {
+    function Trim-URIFragment($uri) {
         # HACK: youtube exclusive...
-        return $uri-replace"- \[.*\]\("-replace"&list=.*"         
+        return $uri -replace "- \[.*\]\(" -replace "&list=.*"         
     }
     $link = Trim-URIFragment $uri
     yt-dlp --list-formats $link

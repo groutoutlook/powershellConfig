@@ -110,7 +110,8 @@ public class Win32ClickThrough {
         # Remove transparent: Enable clicking
         # But KEEP ToolWindow so it stays hidden from Alt+Tab
         $newStyle = ($style -band (-not [Win32ClickThrough]::WS_EX_TRANSPARENT)) -bor [Win32ClickThrough]::WS_EX_TOOLWINDOW
-    } else {
+    }
+    else {
         # Add transparent: Disable clicking (Clickthrough)
         # We ensure Layered is set, as Transparent often requires it.
         # Also enforcing ToolWindow style as requested to keep it hidden from Alt+Tab
@@ -148,7 +149,8 @@ public class Win32ExplorerHelper {
     
     if ($hwnd -ne [IntPtr]::Zero) {
         return "0x{0:X}" -f $hwnd.ToInt64()
-    } else {
+    }
+    else {
         Write-Warning "Shell_TrayWnd not found."
         return $null
     }
