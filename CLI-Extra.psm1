@@ -15,17 +15,19 @@ function Import-Completion {
     }
 }
 Set-Alias -Name :cp -Value Import-Completion 
-
 function Get-Playlistmpv(
-    [Parameter(Mandatory = $false)]
-    [System.String[]]
-    [PSDefaultValue(help = "Text/Lines that contain links, hope we can evolve it to file(s)")]
-    [Alias("m")]
-    $Mode = "normal",
-    $last = 100,
-    $first = 0,
-    $videoOption = "1"
+    $tail = @(100, 100),
+    $head = @(1, 0),
+    [ValidateSet('usual', 'rarely', 'all')]
+    $stripUnplay = 'usual',
+    [string]$stringSearch = "",
+    $videoOption = "1",
+    $Mode = "normal"
 ) {
+    if ($tail -is [string]) {
+        $stringSearch = $tail
+        $Mode = "rg"
+    }
     # HACK: in case we copy a chunk of text with newline.
     # echo ($listURI).PSobject
     $global:playlistTemp = "$HOME/mpv-playing.txt"
@@ -34,19 +36,34 @@ function Get-Playlistmpv(
         Remove-Item $global:playlistTemp -ErrorAction SilentlyContinue -Force
     }
     New-Item $global:playlistTemp
-
     if ($Mode -match "^n") {
         $playlist_file = fd --hyperlink musicj --base-directory="$(zoxide query obs)" 
         $playlist_file = Join-Path -Path "$(zoxide query obs)" -ChildPath $playlist_file
-        (Get-Content -Tail $last $playlist_file) + (Get-Content -Head $first $playlist_file) |
-            ForEach-Object { filterURI $_ >> $global:playlistTemp }
-        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0
+        if ($tail -is [array]) {
+            $tailFile = Get-Content -Tail $tail[0] $playlist_file
+            $headFile = Get-Content -Head $head[0] $playlist_file
+            ($headFile[0..($head[1])] + $tailFile[0..($tail[1])]) |
+                ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
+        }
+        else {
+            (Get-Content -Tail $tail[0] $playlist_file) + (Get-Content -Head $head[0] $playlist_file) |
+                ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
+        }
+        # mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0 --sub-pos=20
+        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
+    }
+    elseif ($Mode -eq "rg") {
+        if ($stringSearch -ne "") {
+            $finalPattern = $stringSearch -join ".*"
+            rg $finalPattern $jtb["ms"] -C 5 | ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
+        }
+        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
     }
     elseif ($Mode -eq "b") {
         $query = 'spacing'
         rg $query -M 400 (zoxide query obs) |
-            ForEach-Object { filterURI $_ >> $global:playlistTemp }
-        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=no --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0
+            ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
+        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=no --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
     }
 }
 
@@ -131,7 +148,7 @@ function rds {
     Invoke-Expression $command
     if ($null -ne $args) {    
         sleep -Milliseconds 350 
-        Send-Key "msedge" "/$joinedTerm"
+        Send-Key "$global:defaultBrowser" "/$joinedTerm"
     }
 }
 
@@ -160,37 +177,40 @@ public class WindowControl {
 "@
 
 # INFO: if there were any need for passing $args, wrap it in double quotes.
-function ss {
-    # Hide the current terminal window
-    $currentProcess = [System.Diagnostics.Process]::GetCurrentProcess()
-    $windowHandle = $currentProcess.MainWindowHandle
-    if ($windowHandle -ne [IntPtr]::Zero -and [WindowControl]::IsWindow($windowHandle)) {
-        echo "Correct for now."
-        [WindowControl]::ShowWindow($windowHandle, [WindowControl]::SW_HIDE)
-    }
-    else {
-        # HACK: fallback to alt+tab
-        [System.Windows.Forms.SendKeys]::SendWait("%{TAB}")
-    }
-
-    Start-Process -FilePath screencapture -ArgumentList "--lang:en $($args -join `" `")" -Wait
-    # Restore the window
-    if ($windowHandle -ne [IntPtr]::Zero -and [WindowControl]::IsWindow($windowHandle)) {
-        echo "wait...?"
-        [WindowControl]::ShowWindow($windowHandle)
-    }
-    else {
-        # HACK: fallback to alt+esc.
-        [System.Windows.Forms.SendKeys]::SendWait("%{TAB}")
-    }
-}
-
+# function ss {
+#     # Hide the current terminal window
+#     $currentProcess = [System.Diagnostics.Process]::GetCurrentProcess()
+#     $windowHandle = $currentProcess.MainWindowHandle
+#     if ($windowHandle -ne [IntPtr]::Zero -and [WindowControl]::IsWindow($windowHandle)) {
+#         echo "Correct for now."
+#         [WindowControl]::ShowWindow($windowHandle, [WindowControl]::SW_HIDE)
+#     }
+#     else {
+#         # HACK: fallback to alt+tab
+#         [System.Windows.Forms.SendKeys]::SendWait("%{ESC}")
+#         echo "alt tab...?"
+#     }
+#     sleep 1
+#
+#     Start-Process -FilePath screencapture -ArgumentList "--lang:en $($args -join `" `")" -Wait
+#     # Restore the window
+#     if ($windowHandle -ne [IntPtr]::Zero -and [WindowControl]::IsWindow($windowHandle)) {
+#         echo "wait...?"
+#         [WindowControl]::ShowWindow($windowHandle)
+#     }
+#     else {
+#         # HACK: fallback to alt+esc.
+#         [System.Windows.Forms.SendKeys]::SendWait("%{TAB}")
+#     }
+# }
+#
 function androidDevEnv {
     $Env:P7AndroidDir = (Join-Path -Path $env:p7settingDir -ChildPath "adb_p7")
     Import-Module -Name (Join-Path -Path $Env:P7AndroidDir -ChildPath "ADB_BasicModule.psm1") -Scope Global 
     checkadb bat
 }
 Set-Alias -Name andDev -Value androidDevEnv
+Set-Alias -Name adbDev -Value androidDevEnv
 
 function Start-Explorer($inputPath = (Get-Location)) {
     $isPath = Test-Path $inputPath 
@@ -201,72 +221,18 @@ function Start-Explorer($inputPath = (Get-Location)) {
         fpilot "$(zoi $inputPath)"
     }
 }
+
+function ytlf(
+    $uri = (Get-Clipboard)
+) {
+    function Trim-URIFragment($uri) {
+        # HACK: youtube exclusive...
+        return $uri -replace "- \[.*\]\(" -replace "&list=.*"         
+    }
+    $link = Trim-URIFragment $uri
+    yt-dlp --list-formats $link
+}
+
 Set-Alias -Name expl -Value Start-Explorer -Scope Global
 Set-Alias -Name exp -Value Start-Explorer -Scope Global
-
-
-function Compare-FunctionOutput {
-    <#
-    .SYNOPSIS
-        Compares the output of two PowerShell commands using difft.
-    
-    .DESCRIPTION
-        Executes two PowerShell commands, captures their output, and compares them using the difft command-line tool.
-    
-    .PARAMETER Command1
-        The first PowerShell command or expression to execute.
-    
-    .PARAMETER Command2
-        The second PowerShell command or expression to execute.
-    
-    .PARAMETER DifftOptions
-        Optional additional options to pass to difft (e.g., "--color=always").
-    
-    .EXAMPLE
-        Compare-FunctionOutput "gci" "ls ./asset"
-    #>
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$Command1,
-        
-        [Parameter(Mandatory = $true)]
-        [string]$Command2,
-        
-        [Parameter(Mandatory = $false)]
-        [string]$DifftOptions = ""
-    )
-    
-    begin {
-        # Check if difft is installed
-        if (-not (Get-Command difft -ErrorAction SilentlyContinue)) {
-            Write-Error "difft is not installed or not found in PATH. Please install difft to use this function."
-            return
-        }
-    }
-    
-    process {
-        try {
-            # Create temporary files for output
-            $tempFile1 = [System.IO.Path]::GetTempFileName()
-            $tempFile2 = [System.IO.Path]::GetTempFileName()
-            
-            # Capture output of both commands
-            Invoke-Expression $Command1 | Out-File -FilePath $tempFile1 -Encoding utf8
-            Invoke-Expression $Command2 | Out-File -FilePath $tempFile2 -Encoding utf8
-            
-            # Run difft to compare the outputs
-            $difftCommand = "difft $DifftOptions $tempFile1 $tempFile2"
-            Invoke-Expression $difftCommand
-        }
-        catch {
-            Write-Error "An error occurred while comparing command outputs: $_"
-        }
-        finally {
-            # Clean up temporary files
-            if (Test-Path $tempFile1) { Remove-Item $tempFile1 -Force }
-            if (Test-Path $tempFile2) { Remove-Item $tempFile2 -Force }
-        }
-    }
-}
-Set-Alias -Name dff -Value Compare-FunctionOutput
+Set-Alias -Name fz -Value pocof -Scope Global

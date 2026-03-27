@@ -19,29 +19,39 @@ function :a {
 }
 
 function :r {
-    p7 && p7mod 
+    p7 && Import-MoreModule 
 }
+
+$global:scriptingModuleList = @(
+    "D:\ProgramDataD\MiscLang\24.01-PowerShell\proj\PSD1.Config.Utils\Psd1.Filesystem.Utils.psd1"
+    # "PSTimers"
+)
+
+
+function Import-MoreModule {
+    Invoke-Expression (&posh-fzf init | Out-String)
+    Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-PoshFzfSelectHistory }
+    foreach ($module in $global:extraModuleList) {
+        Import-Module -Name (Join-Path $env:p7settingDir $module) -Scope Global
+    }
+    foreach ($module in $global:scriptingModuleList) {
+        Import-Module -Name $module -Scope Global
+    }
+}
+
+Set-Alias -Name p7mod -Value Import-MoreModule
+
 
 function :m {
-    Restart-ModuleList
+    Restart-ModuleList -ModuleList $global:personalModuleList -ModulePath $env:p7settingDir
 }
 
-function :backup($Verbose = $null) {
-    Import-Module -Name $env:dotfilesRepo\BackupModule.psm1
-    Backup-Environment $Verbose && Backup-Extensive $Verbose
-}
-Set-Alias -Name :bak -Value :backup
+Set-Alias :mo Restart-ModuleList 
+
 # NOTE: neovim trigger function.
 function :v {
-    if ($args[$args.Length - 1] -match "^g") {
-        # "^gui")
-        $codeEditor = "neovide --frame none -- "
-        $parsedArgs = $args[0..($args.Length - 2)]
-    }
-    else {
-        $codeEditor = "nvim"
-        $parsedArgs = $args
-    }
+    $codeEditor = "nvim"
+    $parsedArgs = $args
   
     $parsedArgs = @($parsedArgs | ForEach-Object { 
             $_ -split ":", "" -split " ", "" 
@@ -103,6 +113,7 @@ $sessionMap = @{
     "es"  = "espanso"
     "ob"  = "obsidian"
     "m"   = "mouse"
+    "k"   = "kanata"
     "ka"  = "kanata"
     "vk"  = "vulkan-samples"
     "wts" = "wt_shader"
@@ -123,7 +134,6 @@ function :vs {
     }
     else {
         if ($null -eq $env:nvim_appname) {
-            # $codeEditor = "neovide --frame none -- "
             $codeEditor = "nvim"
             Invoke-Expression "$codeEditor -c `"lua require('resession').load '$processedString'`""
         }
@@ -137,161 +147,297 @@ function :vs {
 # HACK: As today I could `Get-UniqueEntryJrnl table | Set-Clipboard`
 $global:vaultName = "MainVault"
 $global:vaultPath = "D://ProgramDataD//Notes//Obsidian//$vaultName"
-$JrnlTable = @{
-    "sdk"      = "$vaultPath//note_os_web//SDK//SDK-Framework.General.Journal.md"
-    "gsw"      = "$vaultPath//note_software//journal//GUI.Software.Journal.md"
-    "freecad"  = "$vaultPath//note_IDEAndTools//Asset//CAD//CADJournal.md"
-    "module"   = "$vaultPath//note_Embedded//ChipsetJournal.md"
-    "chip"     = "$vaultPath//note_Embedded//ChipsetJournal.md"
-    "pcba"     = "$vaultPath//note_Embedded//PCB_Standard//PCBJournal.md"
-    "windows"  = "$vaultPath//note_software//journal//OSJournal.md"
-    "uiweb"    = "$vaultPath//note_os_web//SDK//UIJournal.md"
-    "math"     = "$vaultPath//note_algo_lang//journal//STEMJournal.md"
-    "people"   = "$vaultPath//note_Business//ConnectionJournal.md"
-    "ev"       = "$vaultPath//note_Knowledge//journal//EventJournal.md"
-    "ali"      = "$vaultPath//note_Items//1688Journal.md"
-    "tip"      = "$vaultPath//note_Knowledge//journal//LifeHackJournal.md"
-    "gui"      = "$vaultPath//note_algo_lang//journal//GraphicUIJournal.md"
-    "swt"      = "$vaultPath//note_software//journal//TUI.Terminal.Software.Journal.md"
-    "asset"    = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "wprog"    = "$vaultPath//note_os_web//SDK//WebProgJournal.md"
-    "pol"      = "$vaultPath//note_Knowledge//journal//NewsJournal.md"
-    "social"   = "$vaultPath//note_Business//ConnectionJournal.md"
-    "cad3d"    = "$vaultPath//note_IDEAndTools//Asset//CAD//CADJournal.md"
-    "soc"      = "$vaultPath//note_Embedded//ChipsetJournal.md"
-    "self"     = "$vaultPath//note_entertainment//note_interest//PersonalJournal.md"
-    "work"     = "$vaultPath//note_Business//WorkJournal.md"
-    "csci"     = "$vaultPath//note_algo_lang//journal//CompSciJournal.md"
-    "daily"    = "$vaultPath//note_entertainment//note_interest//Diary.Journal.md"
-    "vul"      = "$vaultPath//note_algo_lang//journal//GraphicUIJournal.md"
-    "lhack"    = "$vaultPath//note_Knowledge//journal//LifeHackJournal.md"
-    "model"    = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "meme"     = "$vaultPath//note_Knowledge//journal//WholesomeJournal.md"
-    "conn"     = "$vaultPath//note_Business//ConnectionJournal.md"
-    "emb"      = "$vaultPath//note_Embedded//FirmwareJournal.md"
-    "swc"      = "$vaultPath//note_software//journal//CLI.Terminal.Software.Journal.md"
-    "sw"       = "$vaultPath//note_software//journal//SoftwareJournal.md"
-    "taobao"   = "$vaultPath//note_Items//TaobaoJournal.md"
-    "fm"       = "$vaultPath//note_IDEAndTools//Asset//File-Format.Journal.md"
-    "wasm"     = "$vaultPath//note_os_web//SDK//WebProgJournal.md"
-    "art"      = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "hack"     = "$vaultPath//note_Knowledge//journal//LifeHackJournal.md"
-    "like"     = "$vaultPath//note_entertainment//note_interest//PersonalJournal.md"
-    "new"      = "$vaultPath//note_Knowledge//journal//NewsJournal.md"
-    "stm"      = "$vaultPath//note_Embedded//FirmwareJournal.md"
-    "rule"     = "$vaultPath//note_Business//WorkflowJournal.md"
-    "myrule"   = "$vaultPath//note_Business//WorkflowJournal.md"
-    "video"    = "$vaultPath//note_entertainment//note_discography//VideoJournal.md"
-    "place"    = "$vaultPath//note_Knowledge//journal//PlacesJournal.md"
-    "swgui"    = "$vaultPath//note_software//journal//GUI.Software.Journal.md"
-    "wapi"     = "$vaultPath//note_os_web//SDK//WebAPIJournal.md"
-    "wire"     = "$vaultPath//note_Embedded//ProtocolJournal.md"
-    "music"    = "$vaultPath//note_entertainment//note_discography//MusicJournal.md"
-    "cli"      = "$vaultPath//note_software//journal//CLI.Terminal.Software.Journal.md"
-    "wfr"      = "$vaultPath//note_os_web//SDK//SDK-Framework.Web.Journal.md"
-    "prog"     = "$vaultPath//note_algo_lang//journal//ProgrammingJournal.md"
-    "hard"     = "$vaultPath//note_Embedded//HardwareJournal.md"
-    "file"     = "$vaultPath//note_IDEAndTools//Asset//File-Format.Journal.md"
-    "gpu"      = "$vaultPath//note_algo_lang//journal//GraphicUIJournal.md"
-    "tu"       = "$vaultPath//note_software//journal//TUI.Terminal.Software.Journal.md"
-    "vid"      = "$vaultPath//note_entertainment//note_discography//VideoJournal.md"
-    "webui"    = "$vaultPath//note_os_web//SDK//UIJournal.md"
-    "mech"     = "$vaultPath//note_IDEAndTools//Asset//CAD//CADJournal.md"
-    ":3"       = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "pers"     = "$vaultPath//note_entertainment//note_interest//PersonalJournal.md"
-    "cad"      = "$vaultPath//note_IDEAndTools//Asset//CAD//CADJournal.md"
-    "eda"      = "$vaultPath//note_Embedded//note_EDA//EDAJournal.md"
-    "event"    = "$vaultPath//note_Knowledge//journal//EventJournal.md"
-    "wpro"     = "$vaultPath//note_os_web//SDK//WebProgJournal.md"
-    "news"     = "$vaultPath//note_Knowledge//journal//NewsJournal.md"
-    "wlib"     = "$vaultPath//note_os_web//SDK//WebAPIJournal.md"
-    "media"    = "$vaultPath//note_Knowledge//journal//NewsJournal.md"
-    "vc"       = "$vaultPath//note_Knowledge//journal//VocabJournal.md"
-    "other"    = "$vaultPath//note_Knowledge//journal//OtherKnowledgeJournal.md"
-    "econ"     = "$vaultPath//note_Knowledge//journal//EconomyJournal.md"
-    "frame"    = "$vaultPath//note_os_web//SDK//SDK-Framework.General.Journal.md"
-    "wui"      = "$vaultPath//note_os_web//SDK//UIJournal.md"
-    "hw"       = "$vaultPath//note_Embedded//HardwareJournal.md"
-    "vocab"    = "$vaultPath//note_Knowledge//journal//VocabJournal.md"
-    "pcb"      = "$vaultPath//note_Embedded//PCB_Standard//PCBJournal.md"
-    "bus"      = "$vaultPath//note_Embedded//ProtocolJournal.md"
-    "item"     = "$vaultPath//note_Items//OtherItemsJournal.md"
-    "edit"     = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "acc"      = "$vaultPath//note_Knowledge//secret//AccountJournal.md"
-    "quote"    = "$vaultPath//note_Knowledge//journal//QuoteJournal.md"
-    "firm"     = "$vaultPath//note_Embedded//FirmwareJournal.md"
-    "ltip"     = "$vaultPath//note_Knowledge//journal//LifeHackJournal.md"
-    "interest" = "$vaultPath//note_entertainment//note_interest//PersonalJournal.md"
-    "os"       = "$vaultPath//note_software//journal//OSJournal.md"
-    "life"     = "$vaultPath//note_Knowledge//journal//LifeJournal.md"
-    "slang"    = "$vaultPath//note_Knowledge//journal//PhraseJournal.md"
-    "vk"       = "$vaultPath//note_algo_lang//journal//GraphicUIJournal.md"
-    "style"    = "$vaultPath//note_Business//WorkflowJournal.md"
-    "tui"      = "$vaultPath//note_software//journal//TUI.Terminal.Software.Journal.md"
-    "fr"       = "$vaultPath//note_os_web//SDK//SDK-Framework.General.Journal.md"
-    "ms"       = "$vaultPath//note_entertainment//note_discography//MusicJournal.md"
-    "cl"       = "$vaultPath//note_software//journal//CLI.Terminal.Software.Journal.md"
-    "day"      = "$vaultPath//note_entertainment//note_interest//Diary.Journal.md"
-    "ic"       = "$vaultPath//note_Embedded//ChipsetJournal.md"
-    "diary"    = "$vaultPath//note_entertainment//note_interest//Diary.Journal.md"
-    "web"      = "$vaultPath//note_software//journal//WebJournal.md"
-    "swg"      = "$vaultPath//note_software//journal//GUI.Software.Journal.md"
-    "cs"       = "$vaultPath//note_algo_lang//journal//CompSciJournal.md"
-    "three"    = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "fiw"      = "$vaultPath//note_Embedded//FirmwareJournal.md"
-    "linux"    = "$vaultPath//note_software//journal//OSJournal.md"
-    "viap"     = "$vaultPath//note_Embedded//PCB_Standard//PCBJournal.md"
-    "blog"     = "$vaultPath//note_Knowledge//journal//ReadAndListenJournal.md"
-    "ecad"     = "$vaultPath//note_Embedded//note_EDA//EDAJournal.md"
-    "gra"      = "$vaultPath//note_algo_lang//journal//GraphicUIJournal.md"
-    "psy"      = "$vaultPath//note_Knowledge//journal//LifeJournal.md"
-    "embed"    = "$vaultPath//note_Embedded//FirmwareJournal.md"
-    "inte"     = "$vaultPath//note_Embedded//ProtocolJournal.md"
-    "idea"     = "$vaultPath//note_Business//IdeaJournal.md"
-    "til"      = "$vaultPath//note_Knowledge//journal//OtherKnowledgeJournal.md"
-    "ide"      = "$vaultPath//note_IDEAndTools//IDE.Journal.md"
-    "prot"     = "$vaultPath//note_Embedded//ProtocolJournal.md"
-    "html"     = "$vaultPath//note_os_web//SDK//UIJournal.md"
-    "soft"     = "$vaultPath//note_software//journal//SoftwareJournal.md"
-    "stem"     = "$vaultPath//note_algo_lang//journal//STEMJournal.md"
-    "api"      = "$vaultPath//note_algo_lang//journal//LibraryJournal.md"
-    "acro"     = "$vaultPath//note_Knowledge//journal//AcronymJournal.md"
-    "blend"    = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "lang"     = "$vaultPath//note_algo_lang//journal//LangJournal.md"
-    "fw"       = "$vaultPath//note_os_web//SDK//SDK-Framework.General.Journal.md"
-    "phrase"   = "$vaultPath//note_Knowledge//journal//PhraseJournal.md"
-    "fcad"     = "$vaultPath//note_IDEAndTools//Asset//CAD//CADJournal.md"
-    "wsdk"     = "$vaultPath//note_os_web//SDK//SDK-Framework.Web.Journal.md"
-    ":1688"    = "$vaultPath//note_Items//1688Journal.md"
-    "phr"      = "$vaultPath//note_Knowledge//journal//PhraseJournal.md"
-    "wf"       = "$vaultPath//note_Business//WorkflowJournal.md"
-    "default"  = "$vaultPath//MainJournal.md"
-    "physic"   = "$vaultPath//note_algo_lang//journal//STEMJournal.md"
-    "etym"     = "$vaultPath//note_Knowledge//journal//PhraseJournal.md"
-    "come"     = "$vaultPath//note_Knowledge//journal//WholesomeJournal.md"
-    "hh"       = "$vaultPath//note_Knowledge//journal//WholesomeJournal.md"
-    ":1"       = "$vaultPath//note_Items//1688Journal.md"
-    "kicad"    = "$vaultPath//note_Embedded//note_EDA//EDAJournal.md"
-    "lib"      = "$vaultPath//note_algo_lang//journal//LibraryJournal.md"
-    "wfw"      = "$vaultPath//note_os_web//SDK//SDK-Framework.Web.Journal.md"
-    "peo"      = "$vaultPath//note_Business//ConnectionJournal.md"
-    "per"      = "$vaultPath//note_entertainment//note_interest//PersonalJournal.md"
-    "read"     = "$vaultPath//note_Knowledge//journal//ReadAndListenJournal.md"
-    "money"    = "$vaultPath//note_Business//MoneyJournal.md"
-    "fi"       = "$vaultPath//note_Embedded//FirmwareJournal.md"
-    "graph"    = "$vaultPath//note_algo_lang//journal//GraphicUIJournal.md"
-    "ui"       = "$vaultPath//note_os_web//SDK//UIJournal.md"
-    "draw"     = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "comp"     = "$vaultPath//note_Embedded//ComponentJournal.md"
-    "pp"       = "$vaultPath//note_Business//ConnectionJournal.md"
-    "cash"     = "$vaultPath//note_Business//MoneyJournal.md"
-    "pger"     = "$vaultPath//note_Business//ConnectionJournal.md"
-    "eco"      = "$vaultPath//note_Knowledge//journal//EconomyJournal.md"
-    "ety"      = "$vaultPath//note_Knowledge//journal//PhraseJournal.md"
-    ":3d"      = "$vaultPath//note_IDEAndTools//Asset//Art//ArtToolsJournal.md"
-    "qt"       = "$vaultPath//note_Knowledge//journal//QuoteJournal.md"
-    "workflow" = "$vaultPath//note_Business//WorkflowJournal.md"
-    "book"     = "$vaultPath//note_Knowledge//journal//ReadAndListenJournal.md"
+$global:jtb = @{
+    "humor"       = "$vaultPath//note_Knowledge//WholesomeJournal.md"
+    "chip"        = "$vaultPath//note_Embedded//ChipsetJournal.md"
+    "frontend"    = "$vaultPath//note_os_web//UIJournal.md"
+    "ecad"        = "$vaultPath//note_Embedded//EDAJournal.md"
+    "rule"        = "$vaultPath//note_Business//WorkflowJournal.md"
+    "hw"          = "$vaultPath//note_Embedded//HardwareJournal.md"
+    "vocab"       = "$vaultPath//note_Knowledge//VocabJournal.md"
+    "pcba"        = "$vaultPath//note_Embedded//PCBJournal.md"
+    "meta"        = "$vaultPath//note_Knowledge//Meta.Journal.md"
+    "num"         = "$vaultPath//note_algo_lang//Math.Journal.md"
+    "backend"     = "$vaultPath//note_os_web//Server.Network.Journal.md"
+    "fe"          = "$vaultPath//note_os_web//UIJournal.md"
+    "old"         = "$vaultPath//note_Knowledge//History.Event.Journal.md"
+    ":1"          = "$vaultPath//note_Items//1688Journal.md"
+    "pic"         = "$vaultPath//note_Embedded//Passive.IC.Journal.md"
+    "fiw"         = "$vaultPath//note_Embedded//FirmwareJournal.md"
+    "med"         = "$vaultPath//note_Knowledge//Medical.Knowledge.Journal.md"
+    "demob"       = "$vaultPath//note_Embedded//EVB.Hardware.Journal.md"
+    "conn"        = "$vaultPath//note_Business//ConnectionJournal.md"
+    "book"        = "$vaultPath//note_Knowledge//ReadAndListenJournal.md"
+    "money"       = "$vaultPath//note_Business//MoneyJournal.md"
+    "srv"         = "$vaultPath//note_os_web//Server.Network.Journal.md"
+    ":3"          = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "chem"        = "$vaultPath//note_algo_lang//Chemistry.Journal.md"
+    "wpro"        = "$vaultPath//note_os_web//WebProgJournal.md"
+    "geom"        = "$vaultPath//note_algo_lang//Math.Journal.md"
+    "buildsystem" = "$vaultPath//note_os_web//SDK-Framework.General.Journal.md"
+    "ana"         = "$vaultPath//note_Knowledge//Medical.Knowledge.Journal.md"
+    ":1688"       = "$vaultPath//note_Items//1688Journal.md"
+    "self"        = "$vaultPath//note_entertainment//PersonalJournal.md"
+    "matrix"      = "$vaultPath//note_algo_lang//Algebra.Math.Journal.md"
+    "peak"        = "$vaultPath//note_Knowledge//Personal.Idea.Journal.md"
+    "css"         = "$vaultPath//note_os_web//Web.UI.Journal.md"
+    "pcom"        = "$vaultPath//note_Embedded//Passive.IC.Journal.md"
+    "hard"        = "$vaultPath//note_Embedded//HardwareJournal.md"
+    "std"         = "$vaultPath//note_algo_lang//LangJournal.md"
+    "csci"        = "$vaultPath//note_algo_lang//CompSciJournal.md"
+    "wles"        = "$vaultPath//note_Embedded//RF-Wireless.Journal.md"
+    "cul"         = "$vaultPath//note_Knowledge//Culture.Journal.md"
+    "taobao"      = "$vaultPath//note_Items//TaobaoJournal.md"
+    "proto"       = "$vaultPath//note_Embedded//ProtocolJournal.md"
+    "trivt"       = "$vaultPath//note_Knowledge//Trivia.Technologia.Journal.md"
+    "soc"         = "$vaultPath//note_Embedded//ChipsetJournal.md"
+    "ling"        = "$vaultPath//note_Knowledge//PhraseJournal.md"
+    "pcb"         = "$vaultPath//note_Embedded//PCBJournal.md"
+    "gui"         = "$vaultPath//note_software//GUI.Software.Journal.md"
+    "uiweb"       = "$vaultPath//note_os_web//Web.UI.Journal.md"
+    "file"        = "$vaultPath//note_IDEAndTools//File-Format.Journal.md"
+    "ev"          = "$vaultPath//note_Knowledge//EventJournal.md"
+    "event"       = "$vaultPath//note_Knowledge//EventJournal.md"
+    "blog"        = "$vaultPath//note_Knowledge//ReadAndListenJournal.md"
+    "eda"         = "$vaultPath//note_Embedded//EDAJournal.md"
+    "technologia" = "$vaultPath//note_Knowledge//Trivia.Technologia.Journal.md"
+    "freecad"     = "$vaultPath//note_IDEAndTools//CADJournal.md"
+    "trit"        = "$vaultPath//note_Knowledge//Trivia.Technologia.Journal.md"
+    "quote"       = "$vaultPath//note_Knowledge//QuoteJournal.md"
+    "three"       = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "fm"          = "$vaultPath//note_IDEAndTools//File-Format.Journal.md"
+    "emb"         = "$vaultPath//note_Embedded//FirmwareJournal.md"
+    "bld"         = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "ide"         = "$vaultPath//note_IDEAndTools//IDE.Journal.md"
+    "life"        = "$vaultPath//note_Knowledge//LifeJournal.md"
+    "phy"         = "$vaultPath//note_algo_lang//STEMJournal.md"
+    "krita"       = "$vaultPath//note_IDEAndTools//Multimedia.Journal.md"
+    "tip"         = "$vaultPath//note_Knowledge//TIL.Knowledge.Journal.md"
+    "oic"         = "$vaultPath//note_Embedded//Others.IC.Journal.md"
+    "graph"       = "$vaultPath//note_algo_lang//GraphicUIJournal.md"
+    "misc"        = "$vaultPath//note_Knowledge//Trivia.Knowledge.Journal.md"
+    "stip"        = "$vaultPath//note_Knowledge//Personal.Idea.Journal.md"
+    "cpld"        = "$vaultPath//note_Embedded//FPGA-CPLD.IC.Journal.md"
+    "trvt"        = "$vaultPath//note_Knowledge//Trivia.Technologia.Journal.md"
+    "vid"         = "$vaultPath//note_entertainment//VideoJournal.md"
+    "math"        = "$vaultPath//note_algo_lang//Math.Journal.md"
+    "mind"        = "$vaultPath//note_Knowledge//Personal.Psychology.Journal.md"
+    "til"         = "$vaultPath//note_Knowledge//TIL.Knowledge.Journal.md"
+    "gsw"         = "$vaultPath//note_software//GUI.Software.Journal.md"
+    "oth"         = "$vaultPath//note_Knowledge//Other.Knowledge.Journal.md"
+    "swc"         = "$vaultPath//note_software//CLI.Terminal.Software.Journal.md"
+    "algo"        = "$vaultPath//note_algo_lang//Algorithm.Journal.md"
+    "other"       = "$vaultPath//note_Knowledge//Other.Knowledge.Journal.md"
+    "myrule"      = "$vaultPath//note_Business//WorkflowJournal.md"
+    "be"          = "$vaultPath//note_os_web//Server.Network.Journal.md"
+    "wasm"        = "$vaultPath//note_os_web//WebProgJournal.md"
+    "webui"       = "$vaultPath//note_os_web//Web.UI.Journal.md"
+    "fsdk"        = "$vaultPath//note_os_web//SDK-Framework.Firmware.Journal.md"
+    "know"        = "$vaultPath//note_Knowledge//Other.Knowledge.Journal.md"
+    "fcad"        = "$vaultPath//note_IDEAndTools//CADJournal.md"
+    "item"        = "$vaultPath//note_Items//OtherItemsJournal.md"
+    "model"       = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "lang"        = "$vaultPath//note_algo_lang//LangJournal.md"
+    "tech"        = "$vaultPath//note_Knowledge//Trivia.Technologia.Journal.md"
+    "sdk"         = "$vaultPath//note_os_web//SDK-Framework.General.Journal.md"
+    "acro"        = "$vaultPath//note_Knowledge//AcronymJournal.md"
+    "elec"        = "$vaultPath//note_Embedded//Electric.Journal.md"
+    "psy"         = "$vaultPath//note_Knowledge//Psychology.Journal.md"
+    "bs"          = "$vaultPath//note_Business//WorkJournal.md"
+    "wsdk"        = "$vaultPath//note_os_web//SDK-Framework.Web.Journal.md"
+    "linux"       = "$vaultPath//note_software//OSJournal.md"
+    "retro"       = "$vaultPath//note_Knowledge//Personal.Past.Event.Journal.md"
+    "ietf"        = "$vaultPath//note_Embedded//ProtocolJournal.md"
+    "rad"         = "$vaultPath//note_Knowledge//Rad-Script.Journal.md"
+    "cli"         = "$vaultPath//note_software//CLI.Terminal.Software.Journal.md"
+    "hack"        = "$vaultPath//note_Knowledge//LifeHackJournal.md"
+    "video"       = "$vaultPath//note_entertainment//VideoJournal.md"
+    "music"       = "$vaultPath//note_entertainment//MusicJournal.md"
+    "sec"         = "$vaultPath//note_algo_lang//Info.Security.Journal.md"
+    "inst"        = "$vaultPath//note_os_web//SDK-Framework.Firmware.Journal.md"
+    "img"         = "$vaultPath//note_IDEAndTools//Multimedia.Journal.md"
+    "cash"        = "$vaultPath//note_Business//MoneyJournal.md"
+    "quo"         = "$vaultPath//note_Knowledge//QuoteJournal.md"
+    "read"        = "$vaultPath//note_Knowledge//ReadAndListenJournal.md"
+    "embed"       = "$vaultPath//note_Embedded//FirmwareJournal.md"
+    "vk"          = "$vaultPath//note_algo_lang//GraphicUIJournal.md"
+    "stat"        = "$vaultPath//note_Knowledge//Statistic.Journal.md"
+    "vul"         = "$vaultPath//note_algo_lang//GraphicUIJournal.md"
+    "isec"        = "$vaultPath//note_algo_lang//Info.Security.Journal.md"
+    "evk"         = "$vaultPath//note_Embedded//HDK.Hardware.Journal.md"
+    "mcad"        = "$vaultPath//note_IDEAndTools//CADJournal.md"
+    "work"        = "$vaultPath//note_Business//WorkJournal.md"
+    "script"      = "$vaultPath//note_Knowledge//Rad-Script.Journal.md"
+    "fw"          = "$vaultPath//note_os_web//SDK-Framework.General.Journal.md"
+    "web"         = "$vaultPath//note_software//WebJournal.md"
+    "wfw"         = "$vaultPath//note_os_web//SDK-Framework.Web.Journal.md"
+    "diss"        = "$vaultPath//note_Knowledge//Discussion.Topic.Journal.md"
+    "pre"         = "$vaultPath//note_Knowledge//Prediction.Event.Journal.md"
+    "wire"        = "$vaultPath//note_Embedded//ProtocolJournal.md"
+    "new"         = "$vaultPath//note_Knowledge//NewsJournal.md"
+    "laugh"       = "$vaultPath//note_Knowledge//WholesomeJournal.md"
+    "motto"       = "$vaultPath//note_Knowledge//Personal.Idea.Journal.md"
+    "prot"        = "$vaultPath//note_Embedded//ProtocolJournal.md"
+    "swgui"       = "$vaultPath//note_software//GUI.Software.Journal.md"
+    "rtl"         = "$vaultPath//note_Embedded//FPGA-CPLD.IC.Journal.md"
+    "op"          = "$vaultPath//note_Knowledge//Opinion.Journal.md"
+    "design"      = "$vaultPath//note_os_web//UX.Design.Journal.md"
+    "wf"          = "$vaultPath//note_Business//WorkflowJournal.md"
+    "thought"     = "$vaultPath//note_Knowledge//Personal.Psychology.Journal.md"
+    "interest"    = "$vaultPath//note_entertainment//PersonalJournal.md"
+    "devb"        = "$vaultPath//note_Embedded//EVB.Hardware.Journal.md"
+    "default"     = "$vaultPath//MainJournal.md"
+    "media"       = "$vaultPath//note_Knowledge//NewsJournal.md"
+    "triv"        = "$vaultPath//note_Knowledge//Trivia.Knowledge.Journal.md"
+    "wfr"         = "$vaultPath//note_os_web//SDK-Framework.Web.Journal.md"
+    "soft"        = "$vaultPath//note_software//SoftwareJournal.md"
+    "slang"       = "$vaultPath//note_Knowledge//PhraseJournal.md"
+    "board"       = "$vaultPath//note_Embedded//EVB.Hardware.Journal.md"
+    "rfid"        = "$vaultPath//note_Embedded//RF-Wireless.Journal.md"
+    "pers"        = "$vaultPath//note_entertainment//PersonalJournal.md"
+    "stem"        = "$vaultPath//note_algo_lang//STEMJournal.md"
+    "bio"         = "$vaultPath//note_Knowledge//Biology.Science.Journal.md"
+    "image"       = "$vaultPath//note_IDEAndTools//Multimedia.Journal.md"
+    "net"         = "$vaultPath//note_algo_lang//Network.Journal.md"
+    "snippet"     = "$vaultPath//note_Knowledge//Rad-Script.Journal.md"
+    "dev"         = "$vaultPath//note_entertainment//Device.Journal.md"
+    "pp"          = "$vaultPath//note_Business//ConnectionJournal.md"
+    "mcu"         = "$vaultPath//note_Embedded//MCU.IC.Journal.md"
+    "qt"          = "$vaultPath//note_Knowledge//QuoteJournal.md"
+    "nw"          = "$vaultPath//note_algo_lang//Network.Journal.md"
+    "tu"          = "$vaultPath//note_software//TUI.Terminal.Software.Journal.md"
+    "os"          = "$vaultPath//note_software//OSJournal.md"
+    "para"        = "$vaultPath//note_entertainment//Device.Journal.md"
+    "ss"          = "$vaultPath//note_Knowledge//Rad-Script.Journal.md"
+    "diary"       = "$vaultPath//note_entertainment//Diary.Journal.md"
+    "scr"         = "$vaultPath//note_Knowledge//Rad-Script.Journal.md"
+    "society"     = "$vaultPath//note_Knowledge//Culture.Journal.md"
+    "cl"          = "$vaultPath//note_software//CLI.Terminal.Software.Journal.md"
+    "tele"        = "$vaultPath//note_entertainment//Device.Journal.md"
+    "opin"        = "$vaultPath//note_Knowledge//Opinion.Journal.md"
+    "ico"         = "$vaultPath//note_Embedded//Others.IC.Journal.md"
+    "asset"       = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "term"        = "$vaultPath//note_Knowledge//Terminology.Journal.md"
+    "mate"        = "$vaultPath//note_algo_lang//Material.Journal.md"
+    "ltip"        = "$vaultPath//note_Knowledge//LifeHackJournal.md"
+    "phrase"      = "$vaultPath//note_Knowledge//PhraseJournal.md"
+    "ms"          = "$vaultPath//note_entertainment//MusicJournal.md"
+    "snip"        = "$vaultPath//note_Knowledge//Rad-Script.Journal.md"
+    "etym"        = "$vaultPath//note_Knowledge//PhraseJournal.md"
+    "inte"        = "$vaultPath//note_Embedded//ProtocolJournal.md"
+    "rf"          = "$vaultPath//note_Embedded//RF-Wireless.Journal.md"
+    "magnum"      = "$vaultPath//note_Knowledge//Personal.Idea.Journal.md"
+    "pid"         = "$vaultPath//note_Knowledge//Personal.Idea.Journal.md"
+    "kicad"       = "$vaultPath//note_Embedded//EDAJournal.md"
+    "netw"        = "$vaultPath//note_algo_lang//Network.Journal.md"
+    "cpp"         = "$vaultPath//note_algo_lang//LangJournal.md"
+    "day"         = "$vaultPath//note_entertainment//Diary.Journal.md"
+    "disc"        = "$vaultPath//note_Knowledge//Discussion.Topic.Journal.md"
+    "ali"         = "$vaultPath//note_Items//1688Journal.md"
+    "soe"         = "$vaultPath//note_Knowledge//Culture.Journal.md"
+    "blend"       = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "html"        = "$vaultPath//note_os_web//Web.UI.Journal.md"
+    "cs"          = "$vaultPath//note_algo_lang//CompSciJournal.md"
+    "sta"         = "$vaultPath//note_Knowledge//Statistic.Journal.md"
+    "windows"     = "$vaultPath//note_software//OSJournal.md"
+    "shape"       = "$vaultPath//note_algo_lang//Math.Journal.md"
+    "daily"       = "$vaultPath//note_entertainment//Diary.Journal.md"
+    "wlib"        = "$vaultPath//note_os_web//WebAPIJournal.md"
+    "sdr"         = "$vaultPath//note_Embedded//RF-Wireless.Journal.md"
+    "olds"        = "$vaultPath//note_Knowledge//History.Event.Journal.md"
+    "sv"          = "$vaultPath//note_os_web//Server.Network.Journal.md"
+    "workflow"    = "$vaultPath//note_Business//WorkflowJournal.md"
+    "econ"        = "$vaultPath//note_Knowledge//EconomyJournal.md"
+    "anim"        = "$vaultPath//note_Knowledge//Biology.Science.Journal.md"
+    "bb"          = "$vaultPath//note_Embedded//HDK.Hardware.Journal.md"
+    "cad3d"       = "$vaultPath//note_IDEAndTools//CADJournal.md"
+    "meme"        = "$vaultPath//note_Knowledge//WholesomeJournal.md"
+    "vd"          = "$vaultPath//note_IDEAndTools//Multimedia.Journal.md"
+    "people"      = "$vaultPath//note_Business//ConnectionJournal.md"
+    "hdk"         = "$vaultPath//note_Embedded//HDK.Hardware.Journal.md"
+    "api"         = "$vaultPath//note_algo_lang//LibraryJournal.md"
+    "topic"       = "$vaultPath//note_Knowledge//Discussion.Topic.Journal.md"
+    "ux"          = "$vaultPath//note_os_web//UX.Design.Journal.md"
+    "lhack"       = "$vaultPath//note_Knowledge//LifeHackJournal.md"
+    "ui"          = "$vaultPath//note_os_web//UIJournal.md"
+    "arg"         = "$vaultPath//note_Knowledge//Opinion.Journal.md"
+    "agg"         = "$vaultPath//note_Knowledge//Meta.Journal.md"
+    "thes"        = "$vaultPath//note_Knowledge//Personal.Idea.Journal.md"
+    "comp"        = "$vaultPath//note_Embedded//ComponentJournal.md"
+    "infosec"     = "$vaultPath//note_algo_lang//Info.Security.Journal.md"
+    "ps"          = "$vaultPath//note_IDEAndTools//Multimedia.Journal.md"
+    "fpga"        = "$vaultPath//note_Embedded//FPGA-CPLD.IC.Journal.md"
+    "social"      = "$vaultPath//note_Business//ConnectionJournal.md"
+    "lib"         = "$vaultPath//note_algo_lang//LibraryJournal.md"
+    "swt"         = "$vaultPath//note_software//TUI.Terminal.Software.Journal.md"
+    "phil"        = "$vaultPath//note_Knowledge//Psychology.Journal.md"
+    "swg"         = "$vaultPath//note_software//GUI.Software.Journal.md"
+    "evb"         = "$vaultPath//note_Embedded//EVB.Hardware.Journal.md"
+    "server"      = "$vaultPath//note_os_web//Server.Network.Journal.md"
+    "module"      = "$vaultPath//note_Embedded//ChipsetJournal.md"
+    "edit"        = "$vaultPath//note_IDEAndTools//Multimedia.Journal.md"
+    "ety"         = "$vaultPath//note_Knowledge//PhraseJournal.md"
+    "frame"       = "$vaultPath//note_os_web//SDK-Framework.General.Journal.md"
+    "ocom"        = "$vaultPath//note_Embedded//Others.IC.Journal.md"
+    "cad"         = "$vaultPath//note_IDEAndTools//CADJournal.md"
+    "sw"          = "$vaultPath//note_software//SoftwareJournal.md"
+    "tlm"         = "$vaultPath//note_entertainment//Device.Journal.md"
+    "vc"          = "$vaultPath//note_Knowledge//VocabJournal.md"
+    "ic"          = "$vaultPath//note_Embedded//ChipsetJournal.md"
+    "prt"         = "$vaultPath//note_Embedded//ProtocolJournal.md"
+    "prog"        = "$vaultPath//note_algo_lang//ProgrammingJournal.md"
+    "fi"          = "$vaultPath//note_Embedded//FirmwareJournal.md"
+    "tui"         = "$vaultPath//note_software//TUI.Terminal.Software.Journal.md"
+    "pger"        = "$vaultPath//note_Business//ConnectionJournal.md"
+    "cult"        = "$vaultPath//note_Knowledge//Culture.Journal.md"
+    "human"       = "$vaultPath//note_Knowledge//Psychology.Journal.md"
+    "mental"      = "$vaultPath//note_Knowledge//Personal.Psychology.Journal.md"
+    "pass"        = "$vaultPath//note_Embedded//Passive.IC.Journal.md"
+    "place"       = "$vaultPath//note_Knowledge//PlacesJournal.md"
+    "fr"          = "$vaultPath//note_os_web//SDK-Framework.General.Journal.md"
+    "come"        = "$vaultPath//note_Knowledge//WholesomeJournal.md"
+    "art"         = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "al"          = "$vaultPath//note_algo_lang//Algorithm.Journal.md"
+    "news"        = "$vaultPath//note_Knowledge//NewsJournal.md"
+    "physic"      = "$vaultPath//note_algo_lang//STEMJournal.md"
+    "draw"        = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "like"        = "$vaultPath//note_entertainment//PersonalJournal.md"
+    "task"        = "$vaultPath//note_Business//WorkJournal.md"
+    "res"         = "$vaultPath//note_Embedded//Passive.IC.Journal.md"
+    "hist"        = "$vaultPath//note_Knowledge//History.Event.Journal.md"
+    "per"         = "$vaultPath//note_entertainment//PersonalJournal.md"
+    "wapi"        = "$vaultPath//note_os_web//WebAPIJournal.md"
+    "pw"          = "$vaultPath//note_Knowledge//secret//AccountJournal.md"
+    "cve"         = "$vaultPath//note_algo_lang//Info.Security.Journal.md"
+    "stm"         = "$vaultPath//note_Embedded//FirmwareJournal.md"
+    ":3d"         = "$vaultPath//note_IDEAndTools//ArtToolsJournal.md"
+    "pol"         = "$vaultPath//note_Knowledge//NewsJournal.md"
+    "ent"         = "$vaultPath//note_entertainment//Entertainment.Journal.md"
+    "gpu"         = "$vaultPath//note_algo_lang//GraphicUIJournal.md"
+    "style"       = "$vaultPath//note_Business//WorkflowJournal.md"
+    "wui"         = "$vaultPath//note_os_web//Web.UI.Journal.md"
+    "bus"         = "$vaultPath//note_Embedded//ProtocolJournal.md"
+    "eco"         = "$vaultPath//note_Knowledge//EconomyJournal.md"
+    "busy"        = "$vaultPath//note_Business//WorkJournal.md"
+    "icother"     = "$vaultPath//note_Embedded//Others.IC.Journal.md"
+    "list"        = "$vaultPath//note_Knowledge//Meta.Journal.md"
+    "phr"         = "$vaultPath//note_Knowledge//PhraseJournal.md"
+    "wprog"       = "$vaultPath//note_os_web//WebProgJournal.md"
+    "firm"        = "$vaultPath//note_Embedded//FirmwareJournal.md"
+    "idea"        = "$vaultPath//note_Business//IdeaJournal.md"
+    "acc"         = "$vaultPath//note_Knowledge//secret//AccountJournal.md"
+    "ee"          = "$vaultPath//note_Embedded//Electric.Journal.md"
+    "mech"        = "$vaultPath//note_algo_lang//Mechanic.Journal.md"
+    "peo"         = "$vaultPath//note_Business//ConnectionJournal.md"
+    "is"          = "$vaultPath//note_algo_lang//Info.Security.Journal.md"
+    "mat"         = "$vaultPath//note_algo_lang//Material.Journal.md"
+    "gra"         = "$vaultPath//note_algo_lang//GraphicUIJournal.md"
+    "probe"       = "$vaultPath//note_Embedded//HDK.Hardware.Journal.md"
+    "alge"        = "$vaultPath//note_algo_lang//Algebra.Math.Journal.md"
+    "build"       = "$vaultPath//note_os_web//SDK-Framework.General.Journal.md"
+    "cap"         = "$vaultPath//note_Embedded//Passive.IC.Journal.md"
+    "past"        = "$vaultPath//note_Knowledge//Personal.Past.Event.Journal.md"
+    "pred"        = "$vaultPath//note_Knowledge//Prediction.Event.Journal.md"
 }
 
 # NOTE: Obsidian trigger function.
@@ -308,13 +454,13 @@ function :obsidian(
     }
     else {
         $inputString = $String[0]
-        $phrase = $JrnlTable[$inputString]
+        $phrase = $jtb[$inputString]
         if ($phrase -eq $null) {
             # Second chance to match the phrase.
       
             if (($inputString -match "j$") -or ($inputString -match " $")) {
                 $clippedPhrase = $inputString -replace " $" -replace "j$" 
-                $phrase = $JrnlTable[$clippedPhrase]
+                $phrase = $jtb[$clippedPhrase]
             }
         } 
 
@@ -326,86 +472,50 @@ function :obsidian(
         }
     }
 }
-
-# # INFO: switch workspace.
-# $workspaceNameTable = @{
-#     "j"  = "Journal-code-eda"
-#     "jc" = "Journal-code-eda"
-#     "o"  = "Obs-Nvim"
-#     "on" = "Obs-Nvim"
-# }
-# function :ow {
-#     $defaultWorkspace = "Obs-Nvim"
-#
-#     # Prepare arguments  
-#     $argument = $args -join " "
-#     $workspaceName = $workspaceNameTable[$argument] ?? "$defaultWorkspace"
-#
-#     $originalURI = "obsidian://advanced-uri?vault=$global:vaultName&workspace=$workspaceName" 	
-#     (Start-Process "$originalURI" &) | Out-Null
-# }
-#
 Set-Alias -Name :o -Value :obsidian
-# Set-Alias -Name :oo -Value obsidian-cli
-#
+
 # TODO: make the note taking add the #tag on it. so I could enter the note and start wrting on it right away without adding tag.
 function :jrnl {
     $argument = $args
-    $specialArgumentList = @{
-        "^\d+$" = 1
-        "^last" = 2
-        "^lt"   = 2
-        "^tg"   = 3
-        "^tag"  = 3
-        "^\d+e" = 4
-        "^\d+d" = 5
+    if ($argument.Count -eq 0) {
+        & jrnl
+        return
     }
-
-    foreach ( $specialArgument in $specialArgumentList.Keys) {
-        $argLast = $args[-1]
-  
-        if ($argLast -match $specialArgument) {
-            $matchValue_argLast = $Matches.0
-            $argument = $argument -replace $argLast
-            $flagRaise = $specialArgumentList[$specialArgument]
+    $argLast = $argument[-1]
+    switch -Regex ($argLast) {
+        "^\d+$" {
+            $matchValue = $_
+            $argument[-1] = " -$matchValue"
         }
-  
-        switch ($flagRaise) {
-            1 {
-                $match = (Select-String -InputObject $argLast -Pattern "^\d*")
-                $matchValue = $match.Matches.Value
-                $argument[-1] = " -$matchValue"
-            }
-            2 {
-                # regex way to match
-                $day = (Select-String -InputObject $argLast -Pattern "\d*$").Matches.Value ?? 2
-                $convertToInt = [int]$day #- [System.Char]"0"
-                $fromDate = (Get-Date).AddDays(-$convertToInt)
-                $trimDate = Get-Date $fromDate -Format "yyyy/MM/dd"
-                $argument[-1] = " -from $trimDate"
-            }
-            3 {
-                echo "TAGGGG Work."
-            }
-            4 {
-                $match = (Select-String -InputObject $argLast -Pattern "^\d*")
-                $matchValue = $match.Matches.Value ?? 2
-                $argument[-1] = " -$matchValue --edit"
-            }
-            5 {
-                $match = (Select-String -InputObject $argLast -Pattern "^\d*")
-                # echo $match
-                $matchValue = $match.Matches.Value ?? 2
-                $argument[-1] = " -$matchValue --delete"
-            }
+        "^last|^lt" {
+            $day = [regex]::Match($argLast, "\d*$").Value
+            if ($day -eq "") { $day = 2 }
+            else { $day = [int]$day }
+            $fromDate = (Get-Date).AddDays(-$day)
+            $trimDate = Get-Date $fromDate -Format "yyyy/MM/dd"
+            $argument[-1] = " -from $trimDate"
         }
-        if ($null -ne $flagRaise) {
-            break
+        "^tg|^tag" {
+            Write-Output "TAGGGG Work."
+            # Additional logic for tags can be added here if needed
+        }
+        "^\d+e" {
+            $matchValue = [regex]::Match($argLast, "^\d+").Value
+            $argument[-1] = " -$matchValue --edit"
+        }
+        "^\d+d" {
+            $matchValue = [regex]::Match($argLast, "^\d+").Value
+            $argument[-1] = " -$matchValue --delete"
         }
     }
     Invoke-Expression "jrnl $argument"
+
 }
 Set-Alias -Name j -Value :jrnl
+
+function jvc {
+    j vc 10
+}
 
 # INFO: call `Get-UniqueEntryJrnl table` to get current jrnltable list.
 function Get-UniqueEntryJrnl {
@@ -464,8 +574,7 @@ function :e {
     }
     if ($argument -eq "$defaultArgs ") {
         $espansoNvimSession = "espanso"
-        $codeEditor = "neovide --frame none -- "
-        Invoke-Expression "$codeEditor -c 'lua require(`"resession`").load `"$espansoNvimSession`"'"
+        :vs es
     }
     else {
         Invoke-Expression "espanso $argument"

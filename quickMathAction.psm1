@@ -1,10 +1,10 @@
 # Import-Module -Name Prelude
 function toHex($number) {
-    Write-Host('{0:X}' -f $number)
+    Write-Output('{0:X}' -f $number)
 }
 
 function toBin($number) {
-    Write-Host('{0:B}' -f $number)
+    Write-Output('{0:B}' -f $number)
 }
 
 
@@ -23,9 +23,50 @@ function Format-ReverseArray() {
 }
 
 function reverse { 
-    param([String[]] $inputArr)
+    param(
+        [Parameter(
+            ValueFromPipeline = $true,
+            ValueFromPipelineByPropertyName = $false)
+        ]
+        [String[]] $inputArr,
+
+        [Parameter()]
+        [String] $delimiter = ","
+    )
     $arr = @($inputArr)
     [array]::reverse($arr)
-    [string]$resarr = $arr -join ","
+    [string]$resarr = $arr -join $delimiter
     echo $resarr
 }
+
+function Split-Batch {
+    param (
+        [UInt64]$Size = [UInt64]::MaxValue,
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]$InputObject
+    )
+    begin {
+        $Batch = [Collections.Generic.List[object]]::new() # is faster as [Collections.ObjectModel.Collection[psobject]]
+    }
+    process {
+        if ($Size) {
+            if ($Batch.get_Count() -ge $Size) {
+                , @($Batch)
+                $Batch = [Collections.Generic.List[object]]::new()
+            }
+            $Batch.Add($_)
+        }
+        else {
+            # if no size is provided, any top array will be unrolled (remove batches)
+            $_
+        }
+    }
+    end {
+        if ($Batch.get_Count()) {
+            , @($Batch)
+        }
+    }
+}
+
+
+
+Set-Alias solve qalc

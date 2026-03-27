@@ -1,11 +1,11 @@
 $global:lookupSite = @{
-    "reddit"     =  "site%3Areddit.com"
-    "rd"         =  "site%3Areddit.com"
-    "hackernews" =  "site%3Anews.ycombinator.com"
-    "hn"         =  "site%3Anews.ycombinator.com"
-    "gh"         =  "site%3Agithub.com"
-    "gist"       =  "site%3Agist.github.com"
-    "gits"       =  "site%3Agist.github.com"
+    "reddit"     = "site%3Areddit.com"
+    "rd"         = "site%3Areddit.com"
+    "hackernews" = "site%3Anews.ycombinator.com"
+    "hn"         = "site%3Anews.ycombinator.com"
+    "gh"         = "site%3Agithub.com"
+    "gist"       = "site%3Agist.github.com"
+    "gits"       = "site%3Agist.github.com"
     "so"         = "site%3Astackoverflow.com"
     "st"         = "site%3Astackexchange.com"
     "su"         = "site%3Asuperuser.com"
@@ -16,12 +16,12 @@ $global:lookupSite = @{
 
 # FIXME: Reason I have to use that variable because of the broken state of some browser could..
 # affect my speed for accessing things.
-$global:defaultBrowser = "msedge"
+$global:defaultBrowser = "msedge" # could also be chrome for canary feature. Like JXL.
 
 # reason to make this function is, I may need some kind of initial or something to do some opreataion after firing the query
 function hashmapMatch($argsToMatch) {
     $appendix = $global:lookupSite[$argsToMatch]
-    if ( $appendix -ne $null) {
+    if ($null -ne $appendix) {
         $argsToMatch = $appendix
     } 
     return $argsToMatch
@@ -45,7 +45,6 @@ function hvdic(
 }
 
 # INFO: Bang! syntax is useful. You could always search for it.
-# 
 function Search-DuckDuckGo {
     # TODO: Should make a list of abbrev about what to saerch here.
     $exclamationArray = @()
@@ -69,96 +68,318 @@ function Search-DuckDuckGo {
     $filteredArgsString = $filteredArgs -join "+"
     if ($exclamationArray.count -eq 0) {
         $exQuery = 'https://www.duckduckgo.com/?q=' + $filteredArgsString 
-        Invoke-Expression "$global:defaultBrowser $exQuery"
+        Start-Process -FilePath $global:defaultBrowser -ArgumentList $exQuery
     }
     else {
         foreach ($exArg in $exclamationArray) {
             $exQuery = 'https://www.duckduckgo.com/?q=' + $filteredArgsString + "+" + $exArg
-            Invoke-Expression "$global:defaultBrowser $exQuery"
+            Start-Process -FilePath $global:defaultBrowser -ArgumentList $exQuery
         }
     }
 }
 
-Set-Alias -Name ddg -Value Search-DuckDuckGo
 Set-Alias -Name dg -Value Search-DuckDuckGo
-Set-Alias -Name gos -Value Search-DuckDuckGo
 Set-Alias -Name gg -Value Search-DuckDuckGo
 
-function compSearch {
-    $query = 'https://componentsearchengine.com/search?term='
-    $args | % { $query = $query + "$_+" }
-    $url = $query.Substring(0, $query.Length - 1)
-    Start-Process "$url"
+function Resolve-InputUrl {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
 
+    if (Get-Command -Name filterURI -ErrorAction SilentlyContinue) {
+        $filtered = filterURI -strings $Text -stripUnplay 'all'
+        if ($filtered) {
+            return ($filtered -split "`n")[-1]
+        }
+    }
+
+    $match = [regex]::Match($Text, 'https?://[^\s)]+')
+    if ($match.Success) {
+        return $match.Value
+    }
+
+    return $null
 }
-Set-Alias -Name comps -Value compSearch
 
-Add-Type -AssemblyName System.Windows.Forms
+function Resolve-InputUri {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
 
-# INFO: Streaming services quick-access
-# Twitch and Youtube.
-$dictStreamPage = @{
-    "tw" = "https://www.twitch.tv/groutnotout"
-    "yt" = "https://www.youtube.com/@dell_p1/streams"
-}
-
-function obss {
-    Show-Window obs64
-}
-function Start-Streaming($defaultPages = "tw") {
-  
-    $streamingHomepageURI = $dictStreamPage[$defaultPages] 
-    $streamingHomepageURI ??= $dictStreamPage["tw"] 
-    # INFO: Basically wrapping around the `obs-cmd` executable.
-    # Or just simply invoke the shortcut.
     try {
-        (Get-Process -Name obs64 -ErrorAction Stop) `
-            && obs-cmd streaming start && obs-cmd replay start
+        $resolvedUrl = Resolve-InputUrl -Text $Text
+        if (-not $resolvedUrl) {
+            return $null
+        }
 
+        return [uri]::new($resolvedUrl)
     }
-    catch [Microsoft.PowerShell.Commands.ProcessCommandException] {
-        Write-Host "Havent started OBS Studio yet." -ForegroundColor Red
-        Start-Process "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Scoop Apps\OBS Studio.lnk"
+    catch {
+        Write-Verbose "Invalid URL format: $Text"
+        return $null
     }
 }
-Set-Alias sstream Start-Streaming
-function Stop-Streaming {
-    # HACK: This is too linear though. Maybe we need them to express more information, or clean the output...
-    # Havent thought of it yet.
-    obs-cmd streaming stop
-    obs-cmd recording stop
-    obs-cmd replay save
-    obs-cmd replay stop
+
+function Get-ParsedId {
+    param(
+        $idLength = 4,
+        [string]$url = (Get-Clipboard),
+        [switch]$AllMatches,
+        [switch]$preferString,
+        [switch]$exactLength
+    )
+
+    return $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength)
 }
 
-Set-Alias kstream Stop-Streaming
+$parsing_id = {
+    param (
+        $idLength = 4,
+        $url,
+        [switch]$AllMatches,
+        [switch]$preferString,
+        [switch]$exactLength
+    )
 
-function Test-Stream(
-    $defaultPages = "tw",
-    $checkStatus = "cli" 
-) {
-    # Since chrome have my account registered, better automate it here.
-    $defaultStreamingBrowser = "msedge" 
-    # HACK: It's relying on replay status since I toggled it on the same time as streaming.
-    # Should be changed when we have a command like `streaming status` available.
-    $outputCheck = (obs-cmd replay status) | Select-String -Pattern "not"
-    if ($null -ne $outputCheck) {
-        Write-Host "Stream havent started." -ForegroundColor Red
+    # INFO: Extract domain from URL
+    # TODO: may build a regex pattern which concatenated both id... although I think we need to do this in pipeline.
+    $uri = Resolve-InputUri -Text $url
+    if ($null -eq $uri) {
+        return $null
+    }
+
+    $resolvedUrl = $uri.AbsoluteUri
+    $uriHostName = $uri.DnsSafeHost.ToLower()
+    if ($uriHostName.StartsWith('www.')) {
+        $domain = $uriHostName.Substring(4)
     }
     else {
-        Write-Host "Stream started." -ForegroundColor Green
+        $domain = $uriHostName
     }
 
-    if ($checkStatus -match "^cli") {
-        # there may be elegant ways to do this, just implemented something as `obs-cmd streaming status`
-        Write-Host "Check web portal." -ForegroundColor Yellow
-        # $checkStatus = "web"
-    } 
-    if ($checkStatus -match "^w") {
-        $streamingHomepageURI = $dictStreamPage[$defaultPages] 
-        $streamingHomepageURI ??= $dictStreamPage["tw"] 
+    # Default variables for fallback
+    $lowerBound = $idLength
+    $upperBound = if ($exactLength) { $idLength } else { "" }
+    # Stricter hex-token pattern: require token boundaries so substrings inside words (e.g. "embedded") don't match.
+    # Example: "embedded" will NOT produce a match for a 4+ hex token ("bedd") because it's inside a larger word.
+    $hexPattern = "(?<![A-Za-z0-9_])[0-9a-fA-F]{$lowerBound,$upperBound}(?![A-Za-z0-9_])"
 
-        Invoke-Expression "$defaultStreamingBrowser $streamingHomepageURI"
+    $switchDomain = if ($domain -match '(^|\.)taobao\.com$') { 'taobao.com' } elseif ($domain -match '(^|\.)wikipedia\.org$') { 'wikipedia.org' } else { $domain }
+
+    switch ($switchDomain) {
+        'reddit.com' {
+            if ($url -match '/comments/(?<id>[a-z0-9]+)') {
+                $id = $matches['id']
+            }
+        }
+        'wikipedia.org' {
+            $segments = $uri.Segments | ForEach-Object { $_.Trim('/') }
+            $wikiIndex = [Array]::IndexOf($segments, 'wiki')
+            if ($wikiIndex -ge 0 -and $wikiIndex + 1 -lt $segments.Count) {
+                $id = [uri]::UnescapeDataString($segments[$wikiIndex + 1]).ToLowerInvariant()
+            }
+        }
+        'news.ycombinator.com' {
+            # Extract id from query 'id' parameter (HN case)
+            $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
+            $id = $query['id']
+        }
+        'lobste.rs' {
+            # Extract last path segment (Lobsters case)
+            $segments = $uri.Segments | ForEach-Object { $_.TrimEnd('/') }
+            $id = $segments[2]
+        }
+        { $_ -in 'github.com', 'gitlab.com', 'codeberg.org', 'sourceforge.net', 'bitbucket.org', 'sr.ht' } {
+            # Use existing repo name extraction for these repos
+            $void, $repoName = $resolvedUrl | Select-String "github|gitlab|codeberg|sourceforge|bitbucket|sr.ht" | ForEach-Object { Select-RepoLink $_ }
+            Write-Verbose "Repo name: $repoName"
+            # Also try fallback ID extraction via regex in URLs
+            $idFallback = $resolvedUrl | Select-String -All:$AllMatches $hexPattern | ForEach-Object { $_.Matches.Value }
+            
+            if ($preferString) {
+                if ($null -ne $repoName) {
+                    return $repoName
+                }
+
+                return $idFallback
+            }
+            else {
+                if ($null -ne $idFallback) {
+                    return $idFallback
+                }
+
+                return $repoName
+            }
+        }
+        'taobao.com' {
+            if ($uriHostName -match '^shop(?<id>\d+)\.taobao\.com$') {
+                $id = $matches['id']
+                break
+            }
+
+            $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
+            if ($query['id']) {
+                $id = $query['id']
+                break
+            }
+
+            if ($query['user_number_id']) {
+                $id = $query['user_number_id']
+                break
+            }
+
+            if ($resolvedUrl -match '(?<!\d)(?<id>\d{6,})(?!\d)') {
+                $id = $matches['id']
+            }
+        }
+        default {
+            # Generic fallback matching pattern (hexadecimal strings of length)
+            $id = $resolvedUrl | Select-String -All:$AllMatches $hexPattern | ForEach-Object { $_.Matches.Value }
+            Write-Verbose "id (generic fallback): $id"
+        }
+    }
+    return $id
+}
+
+# NOTE: wrap input in single quote
+function Select-ID {
+    param (
+        $idLength = 4,
+        [Parameter(
+            # Mandatory = $true,
+            ValueFromPipeline = $true
+        )]
+        [string]$url = (Get-Clipboard),
+        [switch]$AllMatches,
+        [switch]$preferString,
+        [switch]$exactLength
+    )
+    
+    $id = Get-ParsedId -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
+
+    if ($null -eq $id) { 
+        Write-Error "nothing in here."
+        return
+    }
+    
+    if ($id.GetType().Name -eq "Object[]") {
+        $id | % { rgj $_ } 
+    }
+    else {
+        rgj $id
     }
 }
-Set-Alias ckstream Test-Stream
+
+Set-Alias -Name id -Value Select-ID
+
+# NOTE: wrap input in single quote
+function Invoke-SelectedID(
+    $idLength = 4,
+    [Parameter(
+        # Mandatory = $true,
+        ValueFromPipeline = $true
+    )]
+    $url = (Get-Clipboard),
+    [switch]$AllMatches,
+    [switch]$preferString,
+    [switch]$exactLength
+) {
+    
+    $id = Get-ParsedId -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
+
+    if ($null -eq $id) {
+        Write-Error "nothing in here."
+        return
+    }
+
+    if ($id.GetType().Name -eq "Object[]") {
+        $finalQuery = $id -join "|"
+        igj "$finalQuery"
+    }
+    else {
+        igj $id
+    }
+}
+Set-Alias -Name iid -Value Invoke-SelectedID
+
+function Invoke-NewsLink {
+    Invoke-Expression "$global:defaultBrowser  news.social-protocols.org lobste.rs"
+}
+# INFO: due to it's hackersnews.
+Set-Alias -Name hn -Value Invoke-NewsLink
+
+# function compSearch {
+#     $query = 'https://componentsearchengine.com/search?term='
+#     $args | % { $query = $query + "$_+" }
+#     $url = $query.Substring(0, $query.Length - 1)
+#     Start-Process "$url"
+# }
+#
+# Add-Type -AssemblyName System.Windows.Forms
+# # INFO: Streaming services quick-access Twitch and Youtube.
+# $dictStreamPage = @{
+#     "tw" = "https://www.twitch.tv/groutnotout"
+#     "yt" = "https://www.youtube.com/@dell_p1/streams"
+# }
+#
+# function obss {
+#     Show-Window obs64
+# }
+# function Start-Streaming($defaultPages = "tw") {
+#
+#     $streamingHomepageURI = $dictStreamPage[$defaultPages] 
+#     $streamingHomepageURI ??= $dictStreamPage["tw"] 
+#     # INFO: Basically wrapping around the `obs-cmd` executable.
+#     # Or just simply invoke the shortcut.
+#     try {
+#         (Get-Process -Name obs64 -ErrorAction Stop) `
+#             && obs-cmd streaming start && obs-cmd replay start
+#
+#     }
+#     catch [Microsoft.PowerShell.Commands.ProcessCommandException] {
+#         Write-Host "Havent started OBS Studio yet." -ForegroundColor Red
+#         Start-Process "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Scoop Apps\OBS Studio.lnk"
+#     }
+# }
+# Set-Alias sstream Start-Streaming
+# function Stop-Streaming {
+#     # HACK: This is too linear though. Maybe we need them to express more information, or clean the output...
+#     # Havent thought of it yet.
+#     obs-cmd streaming stop
+#     obs-cmd recording stop
+#     obs-cmd replay save
+#     obs-cmd replay stop
+# }
+# Set-Alias kstream Stop-Streaming
+#
+# function Test-Stream(
+#     $defaultPages = "tw",
+#     $checkStatus = "cli" 
+# ) {
+#     # Since chrome have my account registered, better automate it here.
+#     $defaultStreamingBrowser = "msedge" 
+#     # HACK: It's relying on replay status since I toggled it on the same time as streaming.
+#     # Should be changed when we have a command like `streaming status` available.
+#     $outputCheck = (obs-cmd replay status) | Select-String -Pattern "not"
+#     if ($null -ne $outputCheck) {
+#         Write-Host "Stream havent started." -ForegroundColor Red
+#     }
+#     else {
+#         Write-Host "Stream started." -ForegroundColor Green
+#     }
+#
+#     if ($checkStatus -match "^cli") {
+#         # there may be elegant ways to do this, just implemented something as `obs-cmd streaming status`
+#         Write-Host "Check web portal." -ForegroundColor Yellow
+#         # $checkStatus = "web"
+#     } 
+#     if ($checkStatus -match "^w") {
+#         $streamingHomepageURI = $dictStreamPage[$defaultPages] 
+#         $streamingHomepageURI ??= $dictStreamPage["tw"] 
+#
+#         Invoke-Expression "$defaultStreamingBrowser $streamingHomepageURI"
+#     }
+# }
+# Set-Alias ckstream Test-Stream

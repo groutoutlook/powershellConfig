@@ -3,30 +3,40 @@ using namespace System.Management.Automation
 using namespace System.Management.Automation.Language
 # $RLModule = [Microsoft.PowerShell.PSConsoleReadLine]
 $ggSearchParameters = @{
-    Key              = 'Ctrl+s'
+    Key              = 'Ctrl+shift+alt+w' # limbo
     BriefDescription = 'Web Search Mode'
     LongDescription  = 'Maybe other search function, but who knows.'
     ScriptBlock      = {
         param($key, $arg)
         $line = $null
         $cursor = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
-            [ref]$cursor)
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        
+        # HACK: have to perform one silent check to route those.
         $searchFunction = "Search-DuckDuckGo" 
-        $SearchWithQuery = ""
-        if ($line -match "[a-z]") {
-            $SearchWithQuery = "$searchFunction $line"
+        # rg -q "$($line -join ' ')" $HOME/hw/obs && Set-Variable -Name searchFunction -Value "rgj"
+       
+        $process_string = {
+            param($line)
+            $SearchWithQuery = ""
+            # HACK: strip off any related search function.
+            
+            if ($line -match "[a-z]") {
+                $SearchWithQuery = "$searchFunction $line"
+            }
+            else {
+                $SearchWithQuery = "$searchFunction $(Get-History -Count 1)"
+            }
+            return $SearchWithQuery
         }
-        else {
-            $SearchWithQuery = "$searchFunction $(Get-History -Count 1)"
-        }
-        [Microsoft.PowerShell.PSConsoleReadLine]::AddToHistory($line)
-        Invoke-Expression $SearchWithQuery
+
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $process_string.Invoke($line))
+        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
     }
 }
 
 $VaultSearchParameters = @{
-    Key              = 'Ctrl+shift+s'
+    Key              = 'Ctrl+s' # 'Ctrl+s,Ctrl+s'
     BriefDescription = 'Vault Search Mode'
     LongDescription  = 'Maybe other search function, but who knows.'
     ScriptBlock      = {
@@ -85,16 +95,26 @@ $quickZoxide = {
 
     $process_string = {
         param($line)
-        $existedCd = "cd|z|zq"
+        $jumpTable = @{
+            'cd'   = 'cdb'
+            'cdb'  = 'cdi'
+            'cdi'  = 'cdbi'
+            'cdbi' = 'cd'
+            'z'    = 'zb'
+            'zb'   = 'zi'
+            'zi'   = 'zbi'
+            'zbi'  = 'z'
+            'zq'   = 'zqb'
+            'zqb'  = 'zqi'
+            'zqi'  = 'zqbi'
+            'zqbi' = 'zq'
+        }
+        $existedCd = ($jumpTable.Keys | Sort-Object Length -Descending) -join '|'
+
         switch -Regex ($line) {
-            "^(${existedCd})i\s" {
-                $matchString = $Matches[0]
-                $SearchWithQuery = $line -replace "${matchString}", "zz "
-                break;
-            }
             "^(${existedCd})(\s|$)" {
                 $matchString = $Matches[1]
-                $SearchWithQuery = $line -replace "^${matchString}(\s|$)", "${matchString}i "
+                $SearchWithQuery = $line -replace "^${matchString}(?=\s|$)", $jumpTable[$matchString]
                 break
             }
             default {
@@ -172,17 +192,8 @@ $DoubleQuotesNestedBracketParameter = @{
 }
 
 
-
 $QuickZoxideParameters = @{
-    # Key              = 'Ctrl+shift+z'
-    Key              = 'alt+x'
-    BriefDescription = 'Quick zoxide Mode'
-    LongDescription  = 'quick zoxide opened.'
-    ScriptBlock      = $quickZoxide
-}
-
-$QuickZoxide_2_Parameters = @{
-    Key              = 'Ctrl+shift+z'
+    Key              = @('alt+z', 'ctrl+shift+z')
     BriefDescription = 'Quick zoxide Mode'
     LongDescription  = 'quick zoxide opened.'
     ScriptBlock      = $quickZoxide
@@ -349,6 +360,7 @@ $JrnlParameters = @{
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
             [ref]$cursor)
         $defaultValue = 2
+        $line = $line.Trim()
         $editPattern = '\d+e$'
         if ($line -match "^j\s*$") {
             # INFO: most recent jrnl 
@@ -420,19 +432,25 @@ $HistorySearchGlobalParameters = @{
             [ref]$cursor)
         $finalOptions = $null
         $defaultValue = 8
-    
 
-        Get-Content -Tail 200 (Get-PSReadLineOption).HistorySavePath `
-        | Select-String -Pattern '^j\s+(?:\w|\:)' `
-        | fzf --query '^j ' `
-        | ForEach-Object { $finalOptions = $_ + " $($defaultValue)e" }
+        # NOTE: should have used LSP for this instead.
+        $line = $line.Trim()
+        $originalCommand = $line -split " "
 
+        if ($originalCommand.Count -lt 2) {
+            Get-Content -Tail 200 (Get-PSReadLineOption).HistorySavePath `
+            | Select-String -Pattern '^j\s+(?:\w|\:)' `
+            | fzf --query '^j ' `
+            | ForEach-Object { $finalOptions = $_ + " $($defaultValue)e" }
+        }
+        else {
+            $finalOptions = " 6 | b -lmd"
+        }
         [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$finalOptions")
     
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
     }
 }
-
 
 # Custom implementation of the ViEditVisually PSReadLine function.
 $openEditorParameters = @{
@@ -445,36 +463,54 @@ $openEditorParameters = @{
     }
 }
 
-# $cdHandlerParameters = @{
-#   Key = 'Alt+x'
-#   BriefDescription = 'Set-LocationWhere the paste directory.'
-#   LongDescription = 'Invoke cdwhere with the current directory in the command line'
-#   ScriptBlock = {
-#     param($key, $arg)   # The arguments are ignored in this example
-#
-#     # GetBufferState gives us the command line (with the cursor position)
-#     $line = $null
-#     $cursor = $null
-#     [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
-#       [ref]$cursor)
-#     $invokeFunction = "Set-LocationWhere"
-#     $Query = "$invokeFunction `'$line`'"
-#     #Store to history for future use.
-#
-#     [Microsoft.PowerShell.PSConsoleReadLine]::BeginningOfLine()
-#     [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$invokeFunction `'")
-#     [Microsoft.PowerShell.PSConsoleReadLine]::EndOfLine()
-#     [Microsoft.PowerShell.PSConsoleReadLine]::Insert("`'")
-#     # [Microsoft.PowerShell.PSConsoleReadLine]::AddToHistory($Query)
-#     #Store to history for future use.
-#     # Can InvertLine() here to return empty line.
-#     [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
-#       
-#   }
-# }
-#
+function Edit-PipedContent {
+    param(
+        [Parameter(ValueFromPipeline = $true)]
+        [string[]]$InputObject
+    )
+    
+    begin { $content = @() }
+    process { $content += $InputObject }
+    end {
+        $tempFile = [System.IO.Path]::GetTempFileName()
+        $content | Out-File -FilePath $tempFile -Encoding UTF8
+        
+        # Edit with your preferred editor
+        & $env:EDITOR $tempFile
+        
+        # Read back the edited content
+        Get-Content $tempFile
+        Remove-Item $tempFile
+    }
+}
 
-
+# Custom implementation that uses ViEditVisually with piped content
+$pipeEditorParameters = @{
+    Key              = 'alt+x' 
+    BriefDescription = 'pipe -> editor'
+    LongDescription  = 'pipe results of a command to ViEditVisually.'
+    ScriptBlock      = {
+        param($key, $arg)
+        
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        
+        # Determine source command - prioritize current line like your existing pattern
+        $sourceCommand = if (-not [string]::IsNullOrWhiteSpace($line)) {
+            $line
+        }
+        else { 
+            (Get-History -Count 1).CommandLine 
+        }
+        
+        # Create command that captures output and puts it in buffer for ViEditVisually
+        $__output = ($sourceCommand) | Invoke-Expression | Out-String
+        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
+        [Microsoft.PowerShell.PSConsoleReadLine]::Insert($__output)
+        [Microsoft.PowerShell.PSConsoleReadLine]::ViEditVisually()
+    }
+}
 
 $rgToNvimParameters = @{
     Key              = 'Alt+v'
@@ -488,20 +524,29 @@ $rgToNvimParameters = @{
         $cursor = $null
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
             [ref]$cursor)
+        $line.Trim()
         if ($line -match '^rg') {
             # INFO: Replace could actually increase the length of original strings.
             # So I could be longer than the start.
             [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "ig")
         }
+        elseif ($line -match '^id') {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "iid")
+        }
         else {
             # INFO: check history for the latest match commands
             $SearchWithQuery = Get-History -Count 40 `
             | Sort-Object -Property Id -Descending `
-            | Where-Object { $_.CommandLine -match "^rg" }
+            | Where-Object { $_.CommandLine -match "^(rg|id)" }
             | Select-Object -Index 0 `
 
+            if ($SearchWithQuery -match '^rg') {
+                $SearchWithQuery = $SearchWithQuery -replace '^rg', "ig"
+            }
+            elseif ($SearchWithQuery -match '^id') {
+                $SearchWithQuery = $SearchWithQuery -replace '^id', "iid"
+            }
             [Microsoft.PowerShell.PSConsoleReadLine]::Insert($SearchWithQuery)
-            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, 2, "ig")
         }
         [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
       
@@ -571,35 +616,43 @@ $sudoRunParameters = @{
     {
         param($key, $arg)   # The arguments are ignored in this example
 
-        # GetBufferState gives us the command line (with the cursor position)
         $line = $null
         $cursor = $null
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
             [ref]$cursor)
-        $invokeFunction = "Invoke-SudoPwsh"
-        if ($line -match "[a-z]") {
-            $invokeCommand = "$invokeFunction `"$line`""
+        
+        # INFO: I literally buffer a history in here.
+        $historyAlternative = "$(Get-History -Count 1)"
+        if ($line.Trim(), $historyAlternative -match "^(cd|z|zb|zq|zqb)[bi]?\s") {
+            # HACK: fat finger...
+            $quickZoxide.Invoke($key, $arg)
         }
         else {
-            $invokeCommand = "$invokeFunction `"$(Get-History -Count 1)`""
-        }
+            $invokeFunction = "Invoke-SudoPwsh"
+            if ($line -match "[a-z]") {
+                $invokeCommand = "$invokeFunction `'$line`'"
+            }
+            else {
+                if ($historyAlternative.Trim() -match "^($invokeFunction)") {
+                    $invokeCommand = "$historyAlternative"
+                }
+                else {
 
-        # Invoke-Expression $invokeCommand
-    
-        # HACK: Just revert the line and brute force printing the line again in console.
-        # Ugly way but worked.
-        [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-        [Microsoft.PowerShell.PSConsoleReadLine]::BeginningOfLine()
-        [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$invokeCommand")
-        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
-      
+                    $invokeCommand = "$invokeFunction `'$historyAlternative`'"
+                }
+            }
+
+            # HACK: Just revert the line and brute force printing the line again in console.
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $invokeCommand)
+            [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+        }
     }
 }
 
 
 # HACK: combine both Bakwardkillword and forwardkillword(alt+D) 
 $smartKillWordParameters = @{
-    Key              = 'Ctrl+w'
+    Key              = 'Ctrl+Backspace', 'Ctrl+w'
     BriefDescription = 'Smarter kill word '
     LongDescription  = 'Call sudo on current command or latest command in history.'
     ScriptBlock      = {
@@ -620,32 +673,6 @@ $smartKillWordParameters = @{
         }
     }
 }
-
-
-## HACK: combine both Bakwardkillword and forwardkillword(alt+D) 
-$ExtraKillWordParameters = @{
-    Key              = 'Ctrl+Backspace'
-    BriefDescription = 'Smarter kill word '
-    LongDescription  = 'Call sudo on current command or latest command in history.'
-    ScriptBlock      = {
-        param($key, $arg)   # The arguments are ignored in this example
-
-        # GetBufferState gives us the command line (with the cursor position)
-        $line = $null
-        $cursor = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line,
-            [ref]$cursor)
-     
-        #Info 
-        if ($cursor -eq 0) {
-            [Microsoft.PowerShell.PSConsoleReadLine]::KillWord()
-        }
-        else {
-            [Microsoft.PowerShell.PSConsoleReadLine]::BackwardKillWord()
-        }
-    }
-}
-
 
 $ExtraKillWord1Parameters = @{
     Key              = 'Alt+w'
@@ -670,6 +697,70 @@ $ExtraKillWord1Parameters = @{
     }
 }
 
+$helpParameter = @{
+    Key              = 'ctrl+b'
+    BriefDescription = 'help'
+    LongDescription  = 'As brief.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        
+        if ($line.Length -eq 0) {
+            $line = "$((Get-History -Count 1).CommandLine)"
+            $cursor = $null
+        }
+
+        $pipeAll = "*>&1 | b"
+        $mundaneHelpPattern = "help $pipeAll"
+        $otherhelppattern = "--help $pipeAll"
+        $helpPattern = "-h $pipeAll"
+        $plainPipe = "\|\s*?b"
+
+        switch ($line) {
+            { $_.EndsWith($helpPattern) -eq $true } {
+                $finalString = $_.Replace($helpPattern, $otherHelpPattern)
+                break
+            }
+            { $_.EndsWith($otherHelpPattern) -eq $true } {
+                $finalString = $_.Replace($otherHelpPattern, $mundaneHelpPattern)
+                break
+            }            
+            { $_.EndsWith($mundaneHelpPattern) -eq $true } {
+                $finalString = $_.Replace($mundaneHelpPattern, $helpPattern)
+                break
+            }
+            { $_.EndsWith($pipeAll) -eq $true } {
+                $finalString = $_.Replace($pipeAll, "| b")
+                break
+            }
+            { $_ -match $plainPipe } {
+                $finalString = $_ | Select-String -Pattern $plainPipe | % { $_.Line.replace($_.Matches.Value, $pipeAll) }
+            }
+            default {
+                $finalString = $_ + " $helpPattern"
+            }
+        }
+
+        if ($null -ne $cursor) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, "$finalString")
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($line.Length - 1)
+        }
+        else {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($finalString)
+        }
+        [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
+        if ($?) {
+            Write-Host "nope."
+        }
+    }
+}
 
 
 $MathExpressionParameter = @{
@@ -698,7 +789,6 @@ $MathExpressionParameter = @{
     }
 
 }
-
 
 
 $ParenthesesParameter = @{
@@ -758,7 +848,7 @@ $ParenthesesParameter = @{
 }
 
 $ParenthesesAllParameter = @{
-    Key              = 'Alt+9'
+    Key              = 'Ctrl+9'
     BriefDescription = 'parentheses all or the selection'
     LongDescription  = 'Wraps the selected text or the entire line in parentheses.'
     ScriptBlock      = {
@@ -784,7 +874,7 @@ $ParenthesesAllParameter = @{
 }
 
 $DoubleQuotesParameter = @{
-    Key              = "Alt+'"
+    Key              = "Ctrl+'"
     BriefDescription = 'parentheses the selection or nearest token'
     LongDescription  = 'Wraps selected text in parentheses; if no selection, wraps the token nearest to the cursor. Cursor is placed after the closing parenthesis.'
     ScriptBlock      = {
@@ -840,8 +930,71 @@ $DoubleQuotesParameter = @{
 }
 
 
+$CalculatorParameter = @{
+    Key              = "Ctrl+="
+    BriefDescription = 'bc and fend things.'
+    LongDescription  = 'Wraps selected text in parentheses for bc'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        if ($selectionStart -ne -1) {
+            $selectedText = $line.SubString($selectionStart, $selectionLength)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "bc `"$selectedText`"")
+            if ($line.Length -eq $selectionLength) { 
+                [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine() 
+            }
+            else {
+                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + 2)
+            }
+        }
+        else {
+            $ast = $null
+            $tokens = $null
+            $errors = $null
+            $cursor = $null
+            [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$ast, [ref]$tokens, [ref]$errors, [ref]$cursor)
+            $line = if ($ast.Extent) { $ast.Extent.Text } else { '' }
+            $nearestToken = $tokens | Where-Object {
+                $_.Extent.StartOffset -le $cursor -and $_.Extent.EndOffset -ge $cursor
+            } | Select-Object -First 1
+
+            if (-not $nearestToken) {
+                # If no token is under the cursor, find the closest token
+                $nearestToken = $tokens | Sort-Object {
+                    [Math]::Abs($_.Extent.StartOffset - $cursor)
+                } | Select-Object -First 1
+            }
+
+            if ($nearestToken -and 
+                $nearestToken.Extent.StartOffset -ge 0 -and 
+                $nearestToken.Extent.StartOffset -le $line.Length -and 
+                $nearestToken.Extent.EndOffset -le $line.Length) {
+                $start = $nearestToken.Extent.StartOffset
+                $length = $nearestToken.Extent.EndOffset - $start
+                $text = $nearestToken.Extent.Text
+                [Microsoft.PowerShell.PSConsoleReadLine]::Replace($start, $length, "bc `"$text`"")
+                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($start + $length + 1)
+            }
+            else {
+                [Microsoft.PowerShell.PSConsoleReadLine]::Insert('bc ""')
+                # move cursor in between the quotes
+                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + 4)
+            }
+        }
+    }
+}
+
+# TODO: all this should have the nearest match function implemented in alt+0 and alt+9
+
 $WrapPipeParameter = @{
-    Key              = 'Alt+\'
+    Key              = 'Ctrl+\'
     BriefDescription = 'wrap in pipe (|%{<selected one> $_})'
     LongDescription  = 'As brief.'
     ScriptBlock      = {
@@ -867,6 +1020,65 @@ $WrapPipeParameter = @{
         }
     }
 }
+
+
+$SelectPipeParameter = @{
+    Key              = 'Ctrl+Shift+|'
+    BriefDescription = 'wrap in pipe (| select)'
+    LongDescription  = 'As brief.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        if ($selectionStart -ne -1) {
+            $selectedText = $line.SubString($selectionStart, $selectionLength)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "| select $selectedText ")
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + 9)
+        }
+        else {
+            # Append |%{} at the end and place cursor between braces
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($line.Length, 0, "| select ")
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($line.Length + 9)
+        }
+    }
+}
+
+
+$WherePipeParameter = @{
+    Key              = 'Ctrl+/'
+    BriefDescription = 'wrap in pipe (| ? -eq )'
+    LongDescription  = 'As brief.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        if ($selectionStart -ne -1) {
+            $selectedText = $line.SubString($selectionStart, $selectionLength)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "| ? $selectedText -eq ")
+            # HACK: only fill in the RHS here...
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + 9)
+        }
+        else {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($line.Length, 0, "| ?  -eq")
+            # NOTE: Missing LHS so we fill them first.
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($line.Length + 4)
+        }
+    }
+}
+
+
 
 $GlobalEditorSwitch = @{
     Key              = 'Ctrl+Shift+e,Ctrl+Shift+e'
@@ -991,26 +1203,29 @@ $HandlerParameters = @(
     $ggSearchParameters
     , $VaultSearchParameters
     , $QuickZoxideParameters
-    , $QuickZoxide_2_Parameters
     , $omniSearchParameters
     , $JrnlParameters 
     , $HistorySearchGlobalParameters
     , $sudoRunParameters
     , $smartKillWordParameters
-    , $ExtraKillWordParameters
     , $ExtraKillWord1Parameters
     , $ParenthesesParameter
     , $ParenthesesAllParameter
     , $DoubleQuotesParameter
     , $DoubleQuotesNestedBracketParameter
-    , $wrappipeparameter
+    , $WrapPipeParameter
+    , $WherePipeParameter
+    , $SelectPipeParameter
     , $rgToNvimParameters
     , $rgToRggParameters
     , $IterateCommandParameters
     , $OptionsSwitchParameters
     , $openEditorParameters
+    , $pipeEditorParameters
     , $GlobalEditorSwitch
     , $MathExpressionParameter
+    , $helpParameter
+    , $CalculatorParameter
 )
 # INFO: Unique for Vi mode.
 $ViHandlerParameters = @(
@@ -1073,8 +1288,7 @@ function setAllHandler() {
         foreach ($handler in $ViHandlerParameters) {
             Set-PSReadLineKeyHandler @handler
         }
-        Set-PsFzfOption -PSReadlineChordProvider 'Ctrl+t' -PSReadlineChordReverseHistory 'Ctrl+r' -TabExpansion -AltCCommand $null
-        Set-PSReadLineKeyHandler -Key Tab -ScriptBlock { Invoke-FzfTabCompletion }
+        Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-PoshFzfSelectHistory }
     }
 }
 

@@ -1,3 +1,7 @@
+# CLI-specific env var.
+$env:EZA_CONFIG_DIR = "$env:USERPROFILE\.config\eza"
+$env:_ZO_FZF_OPTS = "--height=35% --bind one:accept"
+
 function omniSearchObsidian {
     $query = ""
     $args | % {
@@ -6,24 +10,51 @@ function omniSearchObsidian {
     Start-Process "obsidian://omnisearch?query=$query" &
 }
 
-# function ig() {
-#     $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-#     $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
-#     $command = "ig $dashArgs `"$pureStringArgs`""
-#     Invoke-Expression $command
-# }
+$argsBuilder = {
+    # TODO: better use something type safe other than all $args like this.
+    $isDashOption = {
+        param($token)
 
-function rgj() {
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
-    $command = "rg `"$pureStringArgs`" -g '*Journal.md' (zoxide query obs) -M 400 -A3 $dashArgs"
-    Invoke-Expression $command
+        return $token -is [string] -and $token -match '^-[A-Za-z]'
+    }
+
+    $dashArgs = @($args | Where-Object { $isDashOption.Invoke($_) })
+    $pureStringArgs = @($args | Where-Object { -not $isDashOption.Invoke($_) })
+
+    if ($pureStringArgs.Count -eq 0) {
+        return "", $dashArgs
+    }
+
+    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : $pureStringArgs[-1] -as [int] ?? 20
+    if ($pureStringArgs[-1] -as [int] -and $pureStringArgs.Count -ge 2) {
+        $pureStringArgs = $pureStringArgs[0..($pureStringArgs.Count - 2)]
+    }
+    $patternBetween = $WithinAmount -eq 0 ? ".*?" : ".{0,$WithinAmount}?"
+
+    # I want to search multiple lines.
+    if ($pureStringArgs[-1] -eq "*n") {
+        $pureStringArgs = $pureStringArgs[0..($pureStringArgs.Count - 2)]
+        $patternBetween = '.*?\n.*?' 
+        $dashArgs += '-U'
+    }
+    
+    $pureStringArgs = $pureStringArgs -join $patternBetween
+
+    return $pureStringArgs , $dashArgs
+}
+
+function rgj
+(
+) {
+    $obsPath = zoxide query obs
+    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
+    & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
 
     if ($? -eq $false) {
         Write-Host "not in those journal.md" -ForegroundColor Magenta
-        rg "$($args -join " ")" -g !'*Journal.md' (zoxide query obs) -M 400
+        & rg -g !'*Journal.md' -M 400 -- ($args -join ".*") $obsPath
         if ($? -eq $false) {
-            Search-DuckDuckGo ($args -join " ") 
+            # Search-DuckDuckGo ($args -join " ") 
             Write-Host "Fall back to other search engine." -ForegroundColor Red
         }
         else {
@@ -34,29 +65,26 @@ function rgj() {
 
 # HACK: rg in vault's other files.
 function rgo() { 
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
-    $command = "rg `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) -M 400 -C0 $dashArgs"
-    Invoke-Expression $command
+    $obsPath = zoxide query obs
+    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
+    & rg -g !'*Journal.md' -M 400 -C0 @dashArgs -- $pureStringArgs $obsPath
 }
 
 # HACK: rg in vault's other files.
 function igo() { 
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
-    $command = "ig `"$pureStringArgs`"  -g !'*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
-    Invoke-Expression $command
+    $obsPath = zoxide query obs
+    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
+    & ig -g !'*Journal.md' --context-viewer=horizontal @dashArgs -- $pureStringArgs $obsPath
 }
 
 function igj() {
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
-    $command = "ig `"$pureStringArgs`"  -g '*Journal.md' (zoxide query obs) --context-viewer=horizontal $dashArgs"
-    Invoke-Expression $command
+    $obsPath = zoxide query obs
+    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
+    & ig -g '*Journal.md' --context-viewer=horizontal @dashArgs -- $pureStringArgs $obsPath
 }
 
 # INFO: yazi quick call.
-function y {
+function yz {
     $tmp = [System.IO.Path]::GetTempFileName()
     yazi $args --cwd-file="$tmp"
     $cwd = Get-Content -Path $tmp -Encoding UTF8
@@ -65,25 +93,62 @@ function y {
     }
     Remove-Item -Path $tmp
 }
-Set-Alias -Name zz -Value y
+Set-Alias -Name zz -Value yz
 
 function Invoke-SudoPwsh {
-    sudo --inline pwsh -Command "$args"
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0)]
+        [string]$Command,
+        [switch]$HaveProfile,
+        [Parameter(ValueFromPipeline = $true)]
+        [object]$InputObject,
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [object[]]$CommandArgs
+    )
+    begin {
+        $pwshArgs = @('-NoLogo', '-NonInteractive', '-ExecutionPolicy', 'Bypass')
+        if (-not $HaveProfile) {
+            $pwshArgs = @('-NoProfile') + $pwshArgs
+        }
+
+        if ($Command) {
+            if ($CommandArgs) {
+                $Command += ' ' + ($CommandArgs | ForEach-Object { '"{0}"' -f ($_ -replace '"', '\"') }) -join ' '
+            }
+            $pwshArgs += '-Command', $Command
+        }
+        elseif ($CommandArgs) {
+            $pwshArgs += '-Command', ($CommandArgs | ForEach-Object { '"{0}"' -f ($_ -replace '"', '\"') }) -join ' '
+        }
+
+        $sudoArgs = @('--inline', 'pwsh') + $pwshArgs
+        $buffer = [System.Collections.Generic.List[object]]::new()
+    }
+
+    process {
+        # INFO: this is all a kind of string builder, to build this:
+        # `sudo --inline pwsh -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$command"`
+        $buffer.Add($InputObject)
+    }
+
+    end {
+        if ($buffer.Count -gt 0) {
+            $buffer.ToArray() | sudo @sudoArgs
+        }
+        else {
+            sudo @sudoArgs
+        }
+    }
 }
 # INFO: mousemaster or something related to mouse controlling
 function Invoke-KeyMouse {
-    Invoke-SudoPwsh "Stop-Process -Name mousemaster*"
-    Invoke-SudoPwsh "Stop-Process -Name kanata*"
-    Push-Location
     if ($args.Length -ne 1) {
-        Start-Sleep -Seconds 1 
-        Set-LocationWhere mousemaster
-        sudo run mousemaster &
-        Set-LocationWhere kanata
-        sudo run kanata -p 127.0.0.1:4039
-        # sudo run kanata &
+        sudo run pwsh -NoLogo -NoProfile -Command "Stop-Process -Name mousemaster*; D:\usr\bin\mousemaster --configuration-file=D:\usr\bin\mousemaster.properties" &
     }
-    Pop-Location
+    else {
+        Invoke-SudoPwsh "Stop-Process -Name mousemaster*"
+    }
 }
 Set-Alias -Name msmt -Value Invoke-KeyMouse
 
@@ -108,17 +173,27 @@ function Get-PathFromFiles() {
 }
 
 function zsh {
-    # INFO: Since I set an experimental flag in powershell which evaluate the ~ symbol. No need to cd to ~ anymore.
     wsl $args --cd ~
-    # wsl
 }
 
-# INFO: since some of the cli utils take quote as exact match, have to invoke  like this.
+# INFO: since some of the cli utils take quote as exact match, have to invoke like this.
 function zq {
     Invoke-Expression "zoxide query $($args -join " ")" 
 }
 function zqi {
     Invoke-Expression  "zoxide query -i $($args -join " ")"
+}
+function zb {
+    Invoke-Expression  "z $(zqb ($($args -join ' ')))"
+}
+function zbi {
+    Invoke-Expression  "z $(zqbi ($($args -join ' ')))"
+}
+function zqb {
+    Invoke-Expression  "zoxide query $($args -join " ") --base-dir $pwd"
+}
+function zqbi {
+    Invoke-Expression  "zoxide query -i $($args -join " ") --base-dir $pwd"
 }
 function ze {
     Invoke-Expression "zoxide edit $($args -join " ")" 
@@ -126,68 +201,123 @@ function ze {
 function za {
     Invoke-Expression "zoxide add $($args -join " ")" 
 }
+function zaa($path = $pwd) {
+    gci $path | % { za $_ && Write-Host "Add Path $_ to zoxide database." }
+}
 
 Set-Alias zo zq
 Set-Alias zoi zqi
+Set-Alias cdb zb
 Set-Alias rgr scooter
 
 # INFO: vscode quick open, with line/column number
 function ccb {
-    $clipboardContent = Get-Clipboard
-    $lineNumber = ":" + ($args -join ":")
-    $isPath = Test-Path $clipboardContent
-    if ($isPath) {
-        code --goto "$clipboardContent$lineNumber"
-    }
-    else {
-        Write-Error "Not Path, check again."
-    }
-}
+    $paramPath = $null
+    $paramLine = $null
+    $paramCol = $null
 
-# INFO: same for helix.
-function xcb {
-    $clipboardContent = Get-Clipboard
-    if ($args -ne $null) { $lineNumber = ":" + ($args -join ":") }
-    else { $lineNumber = ":1" }
-    $isPath = Test-Path $clipboardContent
-    if ($isPath) {
-        hx "$clipboardContent$lineNumber"
+    # Helper scriptblock to parse "path:line:col" or "path"
+    $ParsePathStr = {
+        param($str)
+        if ([string]::IsNullOrWhiteSpace($str)) { return $null }
+        # Clean quotes
+        $str = $str -replace '^"|"$','' -replace "^'|'$",''
+        
+        if (Test-Path -LiteralPath $str) { return @{ Path=$str; Line=$null; Col=$null } }
+        # Handle path:line or path:line:col
+        if ($str -match "^(.+):(\d+)(?::(\d+))?$") {
+            $p = $matches[1]
+            if (Test-Path -LiteralPath $p) {
+                return @{ Path=$p; Line=$matches[2]; Col=$matches[3] }
+            }
+        }
+        return $null
     }
-    else {
-        Write-Error "Not Path, check again."
+
+    $parsed = $null
+    $argIdx = 0
+
+    # 1. Try first arg as path
+    if ($args.Count -gt 0) {
+        $parsed = & $ParsePathStr $args[0]
+        if ($parsed) {
+            $argIdx = 1
+        }
     }
+
+    # 2. Parse overrides from remaining args
+    if ($args.Count -gt $argIdx) {
+        $paramLine = $args[$argIdx]
+    }
+    if ($args.Count -gt ($argIdx + 1)) {
+        $paramCol = $args[$argIdx + 1]
+    }
+
+    # 3. If no path from args, try clipboard
+    if (-not $parsed) {
+        $clipboardContent = Get-Clipboard | Out-String
+        if ($clipboardContent) {
+           $parsed = & $ParsePathStr $clipboardContent.Trim()
+        }
+        
+        if (-not $parsed) {
+            Write-Error "Not Path, check again."
+            return
+        }
+    }
+
+    # 4. Resolve final Line/Col
+    $fileResult = $parsed.Path
+    # If explicit line arg provided, use it. Else use embedded line.
+    $lineResult = if ($paramLine) { $paramLine } else { $parsed.Line }
+    # Same for col
+    $colResult = if ($paramCol) { $paramCol } else { $parsed.Col }
+
+    $finalArg = "$fileResult"
+    if ($lineResult) { 
+        $finalArg += ":$lineResult"
+        if ($colResult) { $finalArg += ":$colResult" }
+    }
+    
+    code --goto "$finalArg"
 }
 
 function rb {
-    just build ($args.Length ? "$args -join ' '" : $null)
+    just build ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rt {
-    just test ($args.Length ? "$args -join ' '" : $null)
+    just test ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rr {
-    just run ($args.Length ? "$args -join ' '" : $null)
+    just run ($args.Length ? "$($args -join ' ')" : $null)
+}
+function rrr {
+    just rr ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rfmt {
-    just format ($args.Length ? "$args -join ' '" : $null)
+    just format ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rd {
-    just deploy ($args.Length ? "$args -join ' '" : $null)
+    just deploy ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rs {
-    just seek ($args.Length ? "$args -join ' '" : $null)
+    just seek ($args.Length ? "$($args -join ' ')" : $null)
 }
 function rw {
-    just watch ($args.Length ? "$args -join ' '" : $null)
+    just watch ($args.Length ? "$($args -join ' ')" : $null)
 }
 
 function re {
     just -e
 }
 
+function rei {
+    just ei ($args.Length ? "$($args -join ' ')" : $null)
+}
+
 Set-Alias -Name r -Value just -Scope Global -Option AllScope
 
 # INFO: more alias.
-Set-Alias -Name b -Value bat
 Set-Alias -Name top -Value btm
 Set-Alias -Name du -Value dust
 Set-Alias -Name less -Value tspin
@@ -202,29 +332,296 @@ function f() {
 
 # HACK: `lsd` and `ls` to `exa`
 function lsd {
-    exa --hyperlink --icons=always $args 
+    $processedArgs = foreach ($arg in $args) {
+        if ($arg -ceq '-p') {
+            '--color=always'
+        }
+        else {
+            $arg
+        }
+    }
+
+    eza --hyperlink --icons=always $processedArgs 
 }
 Set-Alias -Name ls -Value lsd -Scope Global -Option AllScope
+
+# HACK: `la` since I pressed that a lot.
+function la {
+    eza --hyperlink --icons=always -al $args  
+}
+Set-Alias -Name ls -Value lsd -Scope Global -Option AllScope
+
 
 # TODO: check if there are more than the default level (-L=2) of nesting directory.
 # NOTE: and echo it? 
 function tree() {
-    exa --hyperlink -T -L=2 $args 
+    eza --hyperlink -T -L=2 $args 
+    Write-Host "depth flags : -L=2" -ForegroundColor Green
+}
+function tre() {
+    lstr --hyperlinks --icons -gG -s -L=2 --dirs-first --natural-sort $args
+    Write-Host "depth flags : -L=2" -ForegroundColor Green
+}
+function trei() {
+    lstr interactive --icons -gG -s --dirs-first --natural-sort $args
     Write-Host "depth flags : -L=2" -ForegroundColor Green
 }
 
-function Get-Navitldr() {
-    $dashArgs = ($args | Where-Object { $_ -like '-*' }) -join " "
-    $pureStringArgs = ($args | Where-Object { $_ -notlike '-*' }) -join " "
-    # HACK: have to manually null it out... since `navi` dont understand the ''..?
-    if ($dashArgs -eq "") { $dashArgs = $null }
-    if ($pureStringArgs -eq "") {
-        navi
-    }
-    else {
-        navi --tldr $pureStringArgs $dashArgs
+Set-Alias -Name nc -Value ncat -Scope Global -Option AllScope
+function ncput(
+    [String]$content = (Get-Clipboard),
+    $netAddress = "192.168.1.42",
+    $defaultPort = 9001
+) {
+    $content | % { $_ | ncat $netAddress $defaultPort -w 20s
+        Write-Host "Done sent $_" -ForegroundColor Green
     }
 }
-Set-Alias -Name man -Value Get-Navitldr -Scope Global -Option AllScope
+function ncget(
+    $defaultPort = 9001
+) {
+    $getString = ncat -lvp $defaultPort -w 20
+    if ($?) {
+        Set-Clipboard $getString
+        Write-Host "Clipboard set to: $getString" -ForegroundColor Green
+    }
+    else {
+        Write-Host "nothing came up...? Timeout." -ForegroundColor Red
+    }
+}
 
-Set-Alias -Name bc -Value fend -Scope Global -Option AllScope
+function pcb {
+    $targets = $args
+    if ($targets.Count -eq 0) {
+        $targets = @(Get-Clipboard)
+    }
+
+    foreach ($file in $targets) {
+        if ([string]::IsNullOrWhiteSpace($file)) { continue }
+
+        # Remove potential quotes from string paths
+        $file = $file -replace '"', ''
+        
+        if (-not (Test-Path $file)) {
+             Write-Warning "File not found: $file"
+             continue
+        }
+
+        $ext = [System.IO.Path]::GetExtension($file)
+        switch -Regex ($ext) {
+            '\.(kicad_pcb|pcbdoc)$' { & pcbnew $file }
+            '\.(kicad_sch|schdoc)$' { & eeschema $file }
+            default { Write-Warning "Unknown file type for KiCad: $file" }
+        }
+    }
+}
+
+
+# INFO: mpv related
+
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public class Win32DragDrop {
+    public const uint WM_DROPFILES = 0x0233;
+    public const uint GMEM_MOVEABLE = 0x0002;
+    public const uint GMEM_ZEROINIT = 0x0040;
+
+    [DllImport("user32.dll")]
+    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GlobalAlloc(uint uFlags, UIntPtr dwBytes);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GlobalLock(IntPtr hMem);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool GlobalUnlock(IntPtr hMem);
+    
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct DROPFILES {
+        public int pFiles;
+        public POINT pt;
+        public bool fNC;
+        public bool fWide;
+    }
+
+    public static void DropFile(IntPtr hWnd, string filePath) {
+        if (hWnd == IntPtr.Zero) return;
+
+        byte[] bytes = Encoding.Unicode.GetBytes(filePath);
+        // structure size + string length + double null
+        int dataSize = 20 + bytes.Length + 2; 
+        
+        IntPtr hGlobal = GlobalAlloc(GMEM_MOVEABLE | GMEM_ZEROINIT, (UIntPtr)dataSize);
+        if (hGlobal == IntPtr.Zero) return;
+
+        IntPtr pData = GlobalLock(hGlobal);
+        try {
+            DROPFILES df = new DROPFILES();
+            df.pFiles = 20; // Offset where files list starts
+            df.fWide = true; // Unicode
+            
+            Marshal.StructureToPtr(df, pData, false);
+            // safe pointer arithmetic for older .NET
+            IntPtr strDest = new IntPtr(pData.ToInt64() + 20);
+            Marshal.Copy(bytes, 0, strDest, bytes.Length);
+        }
+        finally {
+            GlobalUnlock(hGlobal);
+        }
+
+        PostMessage(hWnd, WM_DROPFILES, hGlobal, IntPtr.Zero);
+    }
+}
+"@
+
+function Send-MpvCommand {
+    param([string]$Command)
+    
+    # Find MPV
+    $mpvProc = Get-Process -Name mpv -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+    if (-not $mpvProc) {
+        Write-Warning "MPV is not running."
+        return
+    }
+
+    # Focus MPV
+    [QuickWin32]::SetForegroundWindow($mpvProc.MainWindowHandle)
+    Start-Sleep -Milliseconds 200
+
+    # Open console
+    [System.Windows.Forms.SendKeys]::SendWait("``") 
+    Start-Sleep -Milliseconds 100
+    
+    # Type command
+    [System.Windows.Forms.SendKeys]::SendWait($Command)
+    Start-Sleep -Milliseconds 100
+    
+    # Execute
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}{ESC}")
+}
+
+function Add-LyricFile {
+    param([string]$Pattern,$delay)
+    
+    $audioDirQuery = "3-audio"
+    
+    # Resolve directory
+    try {
+        $baseDir = (zoxide query $audioDirQuery)
+    } catch {
+        Write-Warning "Could not resolve '$audioDirQuery' with zoxide."
+        return
+    }
+
+    if (-not $baseDir -or -not (Test-Path $baseDir)) {
+         Write-Warning "Directory not found for query '$audioDirQuery'."
+         return
+    }
+    
+    # Try to find the file
+    $files = Get-ChildItem -Path $baseDir -Recurse -File -Filter "*$Pattern*" | Where-Object { $_.Extension -eq ".lrc" -and $_.Name -notmatch "orig\.lrc$" }
+    
+    $targetFile = $files | Select-Object -First 1
+    
+    if (-not $targetFile) {
+        Write-Warning "No matching lyric file found."
+        return
+    }
+    
+    $filePath = $targetFile.FullName
+    Write-Host "Dropping: $filePath" -ForegroundColor Cyan
+    
+    $normalizedPath = $filePath.Replace('\', '/')
+    $command = "sub-add `"$normalizedPath`""
+
+    Send-MpvCommand -Command $command
+
+    if($delay -ne $null){
+        $command = "set sub-delay $delay/1000"
+        Send-MpvCommand -Command $Command
+    }
+        
+
+}
+
+function Add-NextTrack {
+    param([string]$Pattern)
+    
+    $audioDirQuery = "3-audio"
+    
+    # Resolve directory
+    try {
+        $baseDir = (zoxide query $audioDirQuery)
+    } catch {
+        Write-Warning "Could not resolve '$audioDirQuery' with zoxide."
+        return
+    }
+
+    if (-not $baseDir -or -not (Test-Path $baseDir)) {
+         Write-Warning "Directory not found for query '$audioDirQuery'."
+         return
+    }
+    
+    # Try to find the file
+    $targetFile = Get-ChildItem -Path $baseDir -Recurse -File -Filter "*$Pattern*" | Where-Object { $_.Extension -match "\.(mkv|webm)$" } | Select-Object -First 1
+    
+    if (-not $targetFile) {
+        Write-Warning "No matching audio file found."
+        return
+    }
+    
+    $filePath = $targetFile.FullName
+    Write-Host "Queueing next: $filePath" -ForegroundColor Cyan
+    
+    $normalizedPath = $filePath.Replace('\', '/')
+    $command = "loadfile `"$normalizedPath`" insert-next"
+
+    Send-MpvCommand -Command $command
+}
+
+Set-Alias -Name Add-Track -Value Add-NextTrack
+
+# HACK: a wrapper for bat
+function b {
+    [CmdletBinding(PositionalBinding = $false)]
+    param(
+        [Parameter(ValueFromPipeline = $true)]
+        [object]$InputObject,
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [object[]]$RemainingArgs
+    )
+
+    begin {
+        $buffer = [System.Collections.Generic.List[object]]::new()
+    }
+
+    process {
+        if ($null -ne $InputObject) { $buffer.Add($InputObject) }
+    }
+
+    end {
+        if ($buffer.Count -gt 0) {
+            $buffer.ToArray() | bat @RemainingArgs
+            return
+        }
+
+        if ($RemainingArgs | Where-Object { $_ -is [string] -and $_ -match '\.xlsx$' } | Select-Object -First 1) {
+            Write-Host "Warning: abnormal file type (xlsx), using xleak instead" -ForegroundColor Yellow
+            xleak @RemainingArgs
+            return
+        }
+
+        bat @RemainingArgs
+    }
+}

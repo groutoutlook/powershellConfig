@@ -26,9 +26,10 @@ function Show-Window {
         [Parameter(Mandatory)]
         [string] $ProcessName
     )
+    
     $ProcessName = $ProcessName -replace '\.exe$'
 
-    $b = (Get-Process -ErrorAction Ignore "*$ProcessName*").Where({ $_.MainWindowTitle })
+    $b = (Get-Process -ErrorAction Ignore "*$ProcessName*").Where({ $_.MainWindowTitle }) | ? ProcessName -NE 'SystemSettings' 
     $c = $b | % ProcessName | fzf --select-1 --exit-0 --bind one:accept | % { $b | ? Name -EQ $_ }
     $procId = $c.ID
     if (-not $procId) {
@@ -45,13 +46,16 @@ Add-Type @"
 using System;
 using System.Runtime.InteropServices;
 
-public class User32 {
+public class QuickWin32 {
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetConsoleWindow();
 }
 "@
 
@@ -64,19 +68,29 @@ function Send-Key {
 
     # Find the window handle
     $hWnd = (Get-Process -ErrorAction Ignore "*$windowTitle*" ).Where({ $_.MainWindowTitle }, 'First').MainWindowHandle
-    # $hWnd = [User32]::FindWindow([NullString]::Value, $windowTitle)
+    # $hWnd = [QuickWin32]::FindWindow([NullString]::Value, $windowTitle)
     if ($hWnd -eq [IntPtr]::Zero) {
         Write-Host "Window not found!"
         return
     }
     # Set the window to the foreground, it's somehow the must.
-    [User32]::SetForegroundWindow($hWnd)
+    [QuickWin32]::SetForegroundWindow($hWnd)
     [System.Windows.Forms.SendKeys]::SendWait($keys)
 }
 
+function mpn {
+    Send-Key mpv '@'
+    [QuickWin32]::SetForegroundWindow([QuickWin32]::GetConsoleWindow())
+}
+
+function mpns {
+    Send-Key mpv '>'
+    [QuickWin32]::SetForegroundWindow([QuickWin32]::GetConsoleWindow())
+}
+
 # INFO: quick create hashmap.
-function buildIndex {
-    param( [Object[]]$inputArray, [string]$keyName) 
+function buildIndex
+( [Object[]]$inputArray, [string]$keyName) {
 
     $index = @{};
     foreach ($row in $inputArray) {
@@ -107,34 +121,51 @@ function filterURI(
     )]
     [System.String[]]
     [Alias("s")]
-    $strings = (Get-Clipboard)
+    $strings = (Get-Clipboard),
+    [ValidateSet('usual', 'rarely', 'all')]
+    $stripUnplay = 'usual'
 ) {
     $link = $strings
-    if (($link -match ' *^\[\p{L}') -or ($link -match '^.*-.*\[\p{L}')) {
-        # Write-Host "Markdown Link" -ForegroundColor Green 
-        $processedLink = ($link | Select-String "-.*").Matches.Value 
-        $markdownName = ($processedLink | Select-String '^.*\[(.*)\]').Matches.Value
-        # echo $markdownName
-        $processedLink = ($processedLink | Select-String 'http.*').Matches.Value -replace '\)$', ""
-        if ($processedLink -notmatch '^http') {
-            Write-Host 'Somehow Invalid' -ForegroundColor Red  
-            # echo $processedLink
-            return $null
-        }
-        if ($processedLink -match 'end=999') {
-            Write-Host "Dont really want to watch $processedLink"
-            return $null
-        }
-        return  $markdownName + "`n" + $processedLink
-    }
-    elseif ($link -match '^http') {
-        Write-Host "Plain link" -ForegroundColor Yellow 
-        return $link  
-    }
-    else {
+    # Markdown link like [title](url)
+    $match = [regex]::Match($link, '\[(?<text>[^\]]+)\]\((?<url>[^)]+)\)')
+    if (-not $match.Success) {
         return $null
     }
+    $markdownName = $match.Groups['text'].Value
+    $processedLink = $match.Groups['url'].Value.Trim()
+    if ($processedLink -notmatch '^https?://') {
+        Write-Host 'Somehow Invalid' -ForegroundColor Red
+        return $null
+    }
+    $stripPattern = '&dontwanttoplaytoomuchman'
+    switch ($stripUnplay) {
+        'usual' {
+            if ($processedLink -match $stripPattern) {
+                return $null
+            }
+            else {
+                return $markdownName + "`n" + $processedLink
+            }
+        }
+        'rarely' {
+            if ($processedLink -match $stripPattern) {
+                return $markdownName + "`n" + $processedLink -replace $stripPattern, ""
+            }
+            else {
+                return $null
+            }
+        }
+        'all' {
+            if ($processedLink -match $stripPattern) {
+                return $markdownName + "`n" + $processedLink -replace $stripPattern, ""
+            }
+            else {
+                return $markdownName + "`n" + $processedLink
+            }
+        }
+    }
 }
+
 function Restart-Job {
     param (
         [int]$JobId
@@ -153,7 +184,6 @@ function Restart-Job {
     }
 }
 
-
 # INFO: for OSC 8
 function Format-Hyperlink($text, $url) {
     $esc = [char]27
@@ -168,10 +198,16 @@ function isLink($currentPath = (Get-Location)) {
     return  $pathProperty.Target
 }
 
-function cdSymLink($currentPath = (Get-Location)) {
+function Set-LocationSymLink($currentPath = (Get-Location)) {
     $currentPath = Resolve-Path $currentPath
     if (($targetDir = isLink($currentPath)) -ne $null) {
-        Set-Location $targetDir
+        $pathProperty = Get-ItemProperty $targetDir
+        if ( $pathProperty.Attributes -contains "Directory") {
+            Set-Location $targetDir
+        }
+        else {
+            Set-Location (Split-Path $targetDir -Parent)
+        }
     }
 }
 
@@ -209,12 +245,110 @@ function quickSymLink($path = (Get-Clipboard)) {
         Write-Error "$path not a valid path."
     }
 }
-Set-Alias -Name cdsl -Value cdSymLink	
+function swap_prompt {
+    function global:prompt {
+        echo "nothing, just PS:"
+    }
+}
+
+function Convert-PathToOsc8 {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [Alias('FullName', 'LiteralPath', 'PSPath')]
+        [string]$Path,
+        [string]$DisplayText
+    )
+
+    process {
+        $resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+        $uri = [System.Uri]::new($resolved.ProviderPath)
+        $textValue = if ($DisplayText) { $DisplayText -replace ' ', '%20' } else { $resolved.Path }
+        Format-Hyperlink $textValue $uri.AbsoluteUri
+    }
+}
+
+function Resolve-ClipboardPath ($path = (gcb)) {
+
+    $isInteractive = ($PSCmdlet.MyInvocation.PipelineLength -le 1) -and
+    -not [Console]::IsOutputRedirected -and
+    -not [Console]::IsErrorRedirected -and
+    -not [Console]::IsInputRedirected
+
+    $getPath = { return Resolve-Path ($path -replace '"') -ErrorAction SilentlyContinue }
+    $resolved = & $getPath
+    if (-not $resolved) {
+        $originalLocation = Get-Location
+        try {
+            $recursionCount = 0
+            while (-not $resolved -and $recursionCount -lt 3) {
+                cd-
+                Write-Warning "Nothing here.. Back 1 dir at $pwd"
+                $recursionCount++
+                $resolved = & $getPath
+            }
+        }
+        finally {
+            Set-Location $originalLocation
+        }
+    }
+    
+    if ($resolved) {
+        $resolvedPath = $resolved.ToString()
+
+        if (Test-Path -LiteralPath $resolvedPath -PathType Leaf) {
+            $extension = [System.IO.Path]::GetExtension($resolvedPath).ToLowerInvariant()
+            if (@('.7z', '.bz2', '.cab', '.csv', '.doc', '.docx', '.gz', '.iso', '.jar', '.msi', '.ods', '.odt', '.pdf', '.ppt', '.pptx', '.rar', '.tar', '.xls', '.xlsm', '.xlsx', '.zip') -contains $extension) {
+                $answer = Read-Host "'$extension' looks like a file you probably want copied like Explorer. Use Set-FileClipboard? [Y/n]"
+                if ($answer -notmatch '^(n|no)$') {
+                    if (Get-Command -Name 'Set-FileClipboard' -ErrorAction SilentlyContinue) {
+                        Set-FileClipboard $resolvedPath
+                        Write-Host 'File copied to Explorer clipboard.' -ForegroundColor Green
+                        if ($isInteractive) {
+                            Write-Host (Convert-PathToOsc8 -Path $resolvedPath)
+                        }
+
+                        return $resolved
+                    }
+
+                    Write-Warning 'Set-FileClipboard not found. Falling back to text clipboard.'
+                }
+            }
+        }
+
+        Set-Clipboard $resolved && Write-Host "OK." -Fore Green
+        if ($isInteractive) {
+            Write-Host (Convert-PathToOsc8 -Path $resolvedPath)
+            return $resolved
+        }
+        else {
+            return $resolved
+        }
+    }
+    else {
+        Write-Error "Cannot resolve $path in clipboard(?)."
+    }
+}
+
+function Invoke-ShimClipboardPath ($path = (gcb)) {
+    shim (rvcb $path) | tee \\.\CON 
+    # return (gcb)
+}
+
+function Get-TypeInfo {
+    Get-Member -Input $args
+}
+
+Set-Alias -Name shcb -Value Invoke-ShimClipboardPath
+Set-Alias -Name rvcb -Value Resolve-ClipboardPath
+Set-Alias -Name cdsl -Value Set-LocationSymLink	
 Set-Alias -Name rsjb -Value Restart-Job
+Set-Alias -Name spa -Value Split-Path -Scope Global -Option AllScope
 Set-Alias -Name jpa -Value Join-Path -Scope Global -Option AllScope
 # HACK: alias `Measure-Command`, it's hyperfine but in dotnet environment.
 Set-Alias -Name mcm -Value Measure-Command
 Set-Alias -Name rmrf -Value Remove-FullForce 
 Set-Alias -Name cprf -Value Copy-FullForce
 Set-Alias -Name cpcb -Value Copy-FullForce
+Set-Alias -Name gti -Value Get-TypeInfo
 # Export-ModuleMember -Function * -Alias *
