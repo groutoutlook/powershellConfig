@@ -49,16 +49,21 @@ function rgj
     $obsPath = zoxide query obs
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
     & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
-
+    
     if ($? -eq $false) {
-        Write-Host "not in those journal.md" -ForegroundColor Magenta
-        & rg -g !'*Journal.md' -M 400 -- ($args -join ".*") $obsPath
-        if ($? -eq $false) {
-            # Search-DuckDuckGo ($args -join " ") 
-            Write-Host "Fall back to other search engine." -ForegroundColor Red
-        }
-        else {
-            Write-Host "In other Files in Vault, not in those journal.md" -ForegroundColor Blue
+        Write-Host "not in those journal.md, trying rotate mode..." -ForegroundColor Magenta
+        # Rotate mode: swap first and second word if possible
+        if ($args.Count -ge 2) {
+            $args = @($args[1], $args[0]) + ($args.Count -ge 3 ? $args[2..($args.Count - 1)] : @())
+            $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
+            & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
+            if ($? -eq $false) {
+                Write-Host "Still not found in journal.md, checking other files..." -ForegroundColor Yellow
+            } else {
+                Write-Host "Found in journal.md (rotated)" -ForegroundColor Green
+            }
+        } else {
+            Write-Host "Not enough terms to rotate. Fall back to other search engine." -ForegroundColor Red
         }
     }
 }
