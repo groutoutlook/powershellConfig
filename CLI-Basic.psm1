@@ -49,16 +49,49 @@ function rgj
     $obsPath = zoxide query obs
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
     & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
-
+    
     if ($? -eq $false) {
-        Write-Host "not in those journal.md" -ForegroundColor Magenta
-        & rg -g !'*Journal.md' -M 400 -- ($args -join ".*") $obsPath
-        if ($? -eq $false) {
-            # Search-DuckDuckGo ($args -join " ") 
-            Write-Host "Fall back to other search engine." -ForegroundColor Red
-        }
-        else {
-            Write-Host "In other Files in Vault, not in those journal.md" -ForegroundColor Blue
+        Write-Host "not in those journal.md, trying rotate mode..." -ForegroundColor Magenta
+        # Rotate mode: permute terms and retry
+        if ($args.Count -ge 2) {
+            # Build permutations (excluding original order 0,1,2 which was already tried)
+            $tail = if ($args.Count -gt 3) { $args[3..($args.Count - 1)] } else { @() }
+
+            if ($args.Count -eq 2) {
+                # 2 args: just swap
+                $permutations = ,@(1, 0)
+            } else {
+                # 3+ args: all 5 remaining permutations of first 3
+                $permutations = @(,@(0, 2, 1) + ,@(1, 0, 2) + ,@(1, 2, 0) + ,@(2, 0, 1) + ,@(2, 1, 0))
+            }
+
+            $found = $false
+            foreach ($p in $permutations) {
+                if ($args.Count -eq 2) {
+                    $newArgs = @($args[$p[0]], $args[$p[1]])
+                } else {
+                    $newArgs = @($args[$p[0]], $args[$p[1]], $args[$p[2]]) + $tail
+                }
+
+                $pureStringArgs, $dashArgs = $argsBuilder.Invoke($newArgs)
+                & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
+                if ($?) {
+                    $found = $true
+                    $order = ($newArgs | Where-Object { $_ -is [string] -and $_ -notmatch '^-' }) -join ' '
+                    Write-Host "Found in journal.md (rotated: $order)" -ForegroundColor Green
+                    break
+                }
+            }
+
+            if (-not $found) {
+                if ($args.Count -gt 3) {
+                    Write-Host "Still not found. Only the first 3 terms were permuted — try shortening your query." -ForegroundColor Yellow
+                } else {
+                    Write-Host "Still not found in journal.md, checking other files..." -ForegroundColor Yellow
+                }
+            }
+        } else {
+            Write-Host "Not enough terms to rotate. Fall back to other search engine." -ForegroundColor Red
         }
     }
 }
