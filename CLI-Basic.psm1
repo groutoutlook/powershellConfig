@@ -50,6 +50,7 @@ function rgj
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
     & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
     
+    
     if ($? -eq $false) {
         Write-Host "not in those journal.md, trying rotate mode..." -ForegroundColor Magenta
         # Rotate mode: permute terms and retry
