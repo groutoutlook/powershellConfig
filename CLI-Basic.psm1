@@ -50,6 +50,7 @@ function rgj
     $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
     & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
     
+    
     if ($? -eq $false) {
         Write-Host "not in those journal.md, trying rotate mode..." -ForegroundColor Magenta
         # Rotate mode: permute terms and retry
@@ -59,17 +60,19 @@ function rgj
 
             if ($args.Count -eq 2) {
                 # 2 args: just swap
-                $permutations = ,@(1, 0)
-            } else {
+                $permutations = , @(1, 0)
+            }
+            else {
                 # 3+ args: all 5 remaining permutations of first 3
-                $permutations = @(,@(0, 2, 1) + ,@(1, 0, 2) + ,@(1, 2, 0) + ,@(2, 0, 1) + ,@(2, 1, 0))
+                $permutations = @(, @(0, 2, 1) + , @(1, 0, 2) + , @(1, 2, 0) + , @(2, 0, 1) + , @(2, 1, 0))
             }
 
             $found = $false
             foreach ($p in $permutations) {
                 if ($args.Count -eq 2) {
                     $newArgs = @($args[$p[0]], $args[$p[1]])
-                } else {
+                }
+                else {
                     $newArgs = @($args[$p[0]], $args[$p[1]], $args[$p[2]]) + $tail
                 }
 
@@ -86,11 +89,13 @@ function rgj
             if (-not $found) {
                 if ($args.Count -gt 3) {
                     Write-Host "Still not found. Only the first 3 terms were permuted — try shortening your query." -ForegroundColor Yellow
-                } else {
+                }
+                else {
                     Write-Host "Still not found in journal.md, checking other files..." -ForegroundColor Yellow
                 }
             }
-        } else {
+        }
+        else {
             Write-Host "Not enough terms to rotate. Fall back to other search engine." -ForegroundColor Red
         }
     }
@@ -254,14 +259,14 @@ function ccb {
         param($str)
         if ([string]::IsNullOrWhiteSpace($str)) { return $null }
         # Clean quotes
-        $str = $str -replace '^"|"$','' -replace "^'|'$",''
+        $str = $str -replace '^"|"$', '' -replace "^'|'$", ''
         
-        if (Test-Path -LiteralPath $str) { return @{ Path=$str; Line=$null; Col=$null } }
+        if (Test-Path -LiteralPath $str) { return @{ Path = $str; Line = $null; Col = $null } }
         # Handle path:line or path:line:col
         if ($str -match "^(.+):(\d+)(?::(\d+))?$") {
             $p = $matches[1]
             if (Test-Path -LiteralPath $p) {
-                return @{ Path=$p; Line=$matches[2]; Col=$matches[3] }
+                return @{ Path = $p; Line = $matches[2]; Col = $matches[3] }
             }
         }
         return $null
@@ -290,7 +295,7 @@ function ccb {
     if (-not $parsed) {
         $clipboardContent = Get-Clipboard | Out-String
         if ($clipboardContent) {
-           $parsed = & $ParsePathStr $clipboardContent.Trim()
+            $parsed = & $ParsePathStr $clipboardContent.Trim()
         }
         
         if (-not $parsed) {
@@ -436,8 +441,8 @@ function pcb {
         $file = $file -replace '"', ''
         
         if (-not (Test-Path $file)) {
-             Write-Warning "File not found: $file"
-             continue
+            Write-Warning "File not found: $file"
+            continue
         }
 
         $ext = [System.IO.Path]::GetExtension($file)
@@ -545,21 +550,22 @@ function Send-MpvCommand {
 }
 
 function Add-LyricFile {
-    param([string]$Pattern,$delay)
+    param([string]$Pattern, $delay)
     
     $audioDirQuery = "3-audio"
     
     # Resolve directory
     try {
         $baseDir = (zoxide query $audioDirQuery)
-    } catch {
+    }
+    catch {
         Write-Warning "Could not resolve '$audioDirQuery' with zoxide."
         return
     }
 
     if (-not $baseDir -or -not (Test-Path $baseDir)) {
-         Write-Warning "Directory not found for query '$audioDirQuery'."
-         return
+        Write-Warning "Directory not found for query '$audioDirQuery'."
+        return
     }
     
     # Try to find the file
@@ -580,7 +586,7 @@ function Add-LyricFile {
 
     Send-MpvCommand -Command $command
 
-    if($delay -ne $null){
+    if ($delay -ne $null) {
         $command = "set sub-delay $delay/1000"
         Send-MpvCommand -Command $Command
     }
@@ -596,14 +602,15 @@ function Add-NextTrack {
     # Resolve directory
     try {
         $baseDir = (zoxide query $audioDirQuery)
-    } catch {
+    }
+    catch {
         Write-Warning "Could not resolve '$audioDirQuery' with zoxide."
         return
     }
 
     if (-not $baseDir -or -not (Test-Path $baseDir)) {
-         Write-Warning "Directory not found for query '$audioDirQuery'."
-         return
+        Write-Warning "Directory not found for query '$audioDirQuery'."
+        return
     }
     
     # Try to find the file
