@@ -10,88 +10,125 @@ function omniSearchObsidian {
     Start-Process "obsidian://omnisearch?query=$query" &
 }
 
-$argsBuilder = {
-    # TODO: better use something type safe other than all $args like this.
+
+
+# Parse args into pure tokens and dash args (modular helper)
+function Get-SearchArgs {
+    param(
+        [Parameter(ValueFromRemainingArguments=$true)]
+        [object[]]$InputArgs
+    )
     $isDashOption = {
         param($token)
-
-        return $token -is [string] -and $token -match '^-[A-Za-z]'
+        return $token -is [string] -and $token -match '^-{1,2}[A-Za-z]'
     }
 
-    $dashArgs = @($args | Where-Object { $isDashOption.Invoke($_) })
-    $pureStringArgs = @($args | Where-Object { -not $isDashOption.Invoke($_) })
+    $dashArgs = @($InputArgs | Where-Object { $isDashOption.Invoke($_) })
+    $pureTokens = @($InputArgs | Where-Object { -not $isDashOption.Invoke($_) })
 
-    if ($pureStringArgs.Count -eq 0) {
-        return "", $dashArgs
+    return [PSCustomObject]@{ PureTokens = $pureTokens; DashArgs = $dashArgs }
+}
+
+# Build search pattern info from pure tokens (returns terms, patternBetween and extra dash args)
+function Build-PatternFromPureTokens {
+    param(
+        [object[]]$PureTokens
+    )
+
+    if (-not $PureTokens -or $PureTokens.Count -eq 0) {
+        return [PSCustomObject]@{ Terms = @(); PatternBetween = ''; ExtraDash = @() ; Pattern = '' }
     }
 
-    $withinAmount = $pureStringArgs[-1] -eq "**" ? 0 : $pureStringArgs[-1] -as [int] ?? 20
-    if ($pureStringArgs[-1] -as [int] -and $pureStringArgs.Count -ge 2) {
-        $pureStringArgs = $pureStringArgs[0..($pureStringArgs.Count - 2)]
-    }
-    $patternBetween = $WithinAmount -eq 0 ? ".*?" : ".{0,$WithinAmount}?"
+    $tokens = @($PureTokens)
+    $extraDash = @()
 
-    # I want to search multiple lines.
-    if ($pureStringArgs[-1] -eq "*n") {
-        $pureStringArgs = $pureStringArgs[0..($pureStringArgs.Count - 2)]
-        $patternBetween = '.*?\n.*?' 
-        $dashArgs += '-U'
+    $last = $tokens[-1]
+    $withinAmount = if ($last -eq '**') { 0 } else { ($last -as [int]) ?? 20 }
+    if (($last -as [int]) -and $tokens.Count -ge 2) {
+        $tokens = $tokens[0..($tokens.Count - 2)]
     }
-    
-    $pureStringArgs = $pureStringArgs -join $patternBetween
 
-    return $pureStringArgs , $dashArgs
+    $patternBetween = if ($withinAmount -eq 0) { '.*?' } else { ".{0,$withinAmount}?" }
+
+    if ($tokens.Count -gt 0 -and $tokens[-1] -eq '*n') {
+        if ($tokens.Count -ge 2) { $tokens = $tokens[0..($tokens.Count - 2)] } else { $tokens = @() }
+        $patternBetween = '.*?\n.*?'
+        $extraDash += '-U'
+    }
+
+    $pattern = if ($tokens.Count -gt 0) { $tokens -join $patternBetween } else { '' }
+
+    return [PSCustomObject]@{ Terms = $tokens; PatternBetween = $patternBetween; ExtraDash = $extraDash; Pattern = $pattern }
 }
 
 function rgj
 (
 ) {
     $obsPath = zoxide query obs
-    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
-    
-    
+
+    # Modular parsing: split dash options and pure tokens
+    $parsed = Get-SearchArgs -InputArgs $args
+    $pureTokens = @($parsed.PureTokens)
+    $dashArgs = @($parsed.DashArgs)
+
+    # Build pattern info from pure tokens
+    $build = Build-PatternFromPureTokens -PureTokens $pureTokens
+    $terms = @($build.Terms)
+    $patternBetween = $build.PatternBetween
+    $extraDash = @($build.ExtraDash)
+
+    $dashArgsCombined = @($dashArgs + $extraDash)
+    $pattern = $build.Pattern
+
+    & rg -g '*Journal.md' -M 400 -A3 @dashArgsCombined -- $pattern $obsPath
+
     if ($? -eq $false) {
         Write-Host "not in those journal.md, trying rotate mode..." -ForegroundColor Magenta
         # Rotate mode: permute terms and retry
-        if ($args.Count -ge 2) {
-            # Build permutations (excluding original order 0,1,2 which was already tried)
-            $tail = if ($args.Count -gt 3) { $args[3..($args.Count - 1)] } else { @() }
+        if ($terms.Count -ge 2) {
+            # Determine how many initial terms to permute (2, 3, or 4) based on terms
+            $permuteCount = if ($terms.Count -ge 4) { 4 } elseif ($terms.Count -eq 3) { 3 } else { 2 }
+            # Keep tail (terms beyond permuteCount)
+            $tail = if ($terms.Count -gt $permuteCount) { $terms[$permuteCount..($terms.Count - 1)] } else { @() }
 
-            if ($args.Count -eq 2) {
-                # 2 args: just swap
-                $permutations = , @(1, 0)
-            }
-            else {
-                # 3+ args: all 5 remaining permutations of first 3
-                $permutations = @(, @(0, 2, 1) + , @(1, 0, 2) + , @(1, 2, 0) + , @(2, 0, 1) + , @(2, 1, 0))
+            # Hardcoded permutations per permuteCount
+            switch ($permuteCount) {
+                2 { $permutations = @( @(1,0) ,@()) }
+                3 { $permutations = @(
+                        @(0,2,1), @(1,0,2), @(1,2,0), @(2,0,1), @(2,1,0)
+                    ) }
+                4 { $permutations = @(
+                        @(0,1,3,2), @(0,2,1,3), @(0,2,3,1), @(0,3,1,2), @(0,3,2,1),
+                        @(1,0,2,3), @(1,0,3,2), @(1,2,0,3), @(1,2,3,0), @(1,3,0,2), @(1,3,2,0),
+                        @(2,0,1,3), @(2,0,3,1), @(2,1,0,3), @(2,1,3,0), @(2,3,0,1), @(2,3,1,0),
+                        @(3,0,1,2), @(3,0,2,1), @(3,1,0,2), @(3,1,2,0), @(3,2,0,1), @(3,2,1,0)
+                    ) }
             }
 
             $found = $false
             foreach ($p in $permutations) {
-                if ($args.Count -eq 2) {
-                    $newArgs = @($args[$p[0]], $args[$p[1]])
-                }
-                else {
-                    $newArgs = @($args[$p[0]], $args[$p[1]], $args[$p[2]]) + $tail
-                }
+                # HACK: this is the fault of typesystem to demote the type of array[] to array.
+                if($p.Count -eq 0) { continue } 
+                $newTerms = @()
+                foreach ($idx in $p) { $newTerms += $terms[$idx] }
+                $newTerms += $tail
 
-                $pureStringArgs, $dashArgs = $argsBuilder.Invoke($newArgs)
-                & rg -g '*Journal.md' -M 400 -A3 @dashArgs -- $pureStringArgs $obsPath
+                $testPattern = if ($newTerms.Count -gt 0) { $newTerms -join $patternBetween } else { '' }
+                & rg -g '*Journal.md' -M 400 -A3 @dashArgsCombined -- $testPattern $obsPath
                 if ($?) {
                     $found = $true
-                    $order = ($newArgs | Where-Object { $_ -is [string] -and $_ -notmatch '^-' }) -join ' '
+                    $order = ($newTerms | Where-Object { $_ -is [string] -and $_ -notmatch '^-' }) -join ' '
                     Write-Host "Found in journal.md (rotated: $order)" -ForegroundColor Green
                     break
                 }
             }
 
             if (-not $found) {
-                if ($args.Count -gt 3) {
-                    Write-Host "Still not found. Only the first 3 terms were permuted — try shortening your query." -ForegroundColor Yellow
+                if ($terms.Count -gt $permuteCount) {
+                    Write-Host "Still not found. Only the first $permuteCount terms were permuted — try shortening your query." -ForegroundColor Yellow
                 }
                 else {
-                    Write-Host "Still not found in journal.md, checking other files..." -ForegroundColor Yellow
+                    Write-Host "Still not found in journal.md, try upping the within amount to * or more than 20?" -ForegroundColor Yellow
                 }
             }
         }
@@ -104,21 +141,36 @@ function rgj
 # HACK: rg in vault's other files.
 function rgo() { 
     $obsPath = zoxide query obs
-    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    & rg -g !'*Journal.md' -M 400 -C0 @dashArgs -- $pureStringArgs $obsPath
+    $parsed = Get-SearchArgs -InputArgs $args
+    $pureTokens = @($parsed.PureTokens)
+    $dashArgs = @($parsed.DashArgs)
+    $build = Build-PatternFromPureTokens -PureTokens $pureTokens
+    $pattern = $build.Pattern
+    $dashArgs += $build.ExtraDash
+    & rg -g !'*Journal.md' -M 400 -C0 @dashArgs -- $pattern $obsPath
 }
 
 # HACK: rg in vault's other files.
 function igo() { 
     $obsPath = zoxide query obs
-    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    & ig -g !'*Journal.md' --context-viewer=horizontal @dashArgs -- $pureStringArgs $obsPath
+    $parsed = Get-SearchArgs -InputArgs $args
+    $pureTokens = @($parsed.PureTokens)
+    $dashArgs = @($parsed.DashArgs)
+    $build = Build-PatternFromPureTokens -PureTokens $pureTokens
+    $pattern = $build.Pattern
+    $dashArgs += $build.ExtraDash
+    & ig -g !'*Journal.md' --context-viewer=horizontal @dashArgs -- $pattern $obsPath
 }
 
 function igj() {
     $obsPath = zoxide query obs
-    $pureStringArgs , $dashArgs = $argsBuilder.Invoke($args)
-    & ig -g '*Journal.md' --context-viewer=horizontal @dashArgs -- $pureStringArgs $obsPath
+    $parsed = Get-SearchArgs -InputArgs $args
+    $pureTokens = @($parsed.PureTokens)
+    $dashArgs = @($parsed.DashArgs)
+    $build = Build-PatternFromPureTokens -PureTokens $pureTokens
+    $pattern = $build.Pattern
+    $dashArgs += $build.ExtraDash
+    & ig -g '*Journal.md' --context-viewer=horizontal @dashArgs -- $pattern $obsPath
 }
 
 # INFO: yazi quick call.
