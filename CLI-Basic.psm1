@@ -43,16 +43,16 @@ function Build-PatternFromPureTokens {
     $extraDash = @()
 
     $last = $tokens[-1]
-    $withinAmount = if ($last -eq '**') { 0 } else { ($last -as [int]) ?? 20 }
+    $withinAmount = if ($last -eq '**') { 0 } else { ($last -as [int]) ?? 30 }
     if (($last -as [int]) -and $tokens.Count -ge 2) {
         $tokens = $tokens[0..($tokens.Count - 2)]
     }
 
     $patternBetween = if ($withinAmount -eq 0) { '.*?' } else { ".{0,$withinAmount}?" }
 
-    if ($tokens.Count -gt 0 -and $tokens[-1] -eq '*n') {
+    if ($tokens.Count -gt 2 -and $tokens[-1] -eq '*n') {
         if ($tokens.Count -ge 2) { $tokens = $tokens[0..($tokens.Count - 2)] } else { $tokens = @() }
-        $patternBetween = '.*?\n.*?'
+        $patternBetween = '.*?\n?.*?'
         $extraDash += '-U'
     }
 
@@ -128,7 +128,7 @@ function rgj
                     Write-Host "Still not found. Only the first $permuteCount terms were permuted — try shortening your query." -ForegroundColor Yellow
                 }
                 else {
-                    Write-Host "Still not found in journal.md, try upping the within amount to * or more than 20?" -ForegroundColor Yellow
+                    Write-Host "Still not found in journal.md, try upping the within amount to * or more than 30?" -ForegroundColor Yellow
                 }
             }
         }
