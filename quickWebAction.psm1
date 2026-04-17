@@ -254,11 +254,27 @@ function Select-ID {
         [string]$url = (Get-Clipboard),
         [switch]$AllMatches,
         [switch]$preferString,
-        [switch]$exactLength
+        [switch]$exactLength,
+        [switch]$OutString
     )
     
     $id = Get-ParsedId -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
 
+    if ($OutString) {
+        if ($null -eq $id) {
+            Write-Error "nothing in here."
+            return
+        }
+
+        if ($id.GetType().Name -eq "Object[]") {
+            return $id -join "`n"
+        }
+        else {
+            return $id
+        }
+    }
+
+    
     if ($null -eq $id) { 
         Write-Error "nothing in here."
         return
