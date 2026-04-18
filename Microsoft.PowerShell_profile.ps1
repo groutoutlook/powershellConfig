@@ -164,7 +164,7 @@ function Set-LocationWhere(
                 $fileName = ($files)
                 try {
                     $ScriptContent = Get-Content "$env:LOCALAPPDATA/shims/$fileName.ps1" 
-                    Write-Host $ScriptContent
+                    Write-Host $ScriptContent -BackgroundColor DarkGreen -ForegroundColor White
                     
                     # Try to extract path from variable assignments like $path = '...'
                     $pathLine = $ScriptContent | Where-Object { $_ -match '\$\w+\s*=\s*[''"](.+?)[''"]' }
