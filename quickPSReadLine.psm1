@@ -675,7 +675,7 @@ $smartKillWordParameters = @{
 }
 
 $ExtraKillWord1Parameters = @{
-    Key              = 'Alt+w'
+    Key              = @('Alt+w','alt+d')
     BriefDescription = 'Smarter kill word '
     LongDescription  = 'Kill Forward, but hit ceiling then kill backward.'
     ScriptBlock      = {
@@ -1021,6 +1021,52 @@ $WrapPipeParameter = @{
     }
 }
 
+$ToggleCaseParameter = @{
+    Key              = 'Alt+`'
+    BriefDescription = 'Toggle case of selection or line'
+    LongDescription  = 'Toggles the case (Upper/Lower) of the selected text. If no selection, toggles the entire current line.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+
+        if ($selectionStart -ne -1) {
+            # There is a selection
+            $selectedText = $line.Substring($selectionStart, $selectionLength)
+            $toggledText = if ($selectedText -cmatch '^[A-Z]') {
+                # If first char is uppercase → make whole selection lowercase
+                $selectedText.ToLower()
+            }
+            else {
+                # Otherwise → make whole selection uppercase
+                $selectedText.ToUpper()
+            }
+
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, $toggledText)
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength)
+        }
+        else {
+            # No selection → toggle the entire line
+            $toggledLine = if ($line -cmatch '^[A-Z]') {
+                $line.ToLower()
+            }
+            else {
+                $line.ToUpper()
+            }
+
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $toggledLine)
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor)
+        }
+    }
+}
+
+
 
 $SelectPipeParameter = @{
     Key              = 'Ctrl+Shift+|'
@@ -1214,6 +1260,7 @@ $HandlerParameters = @(
     , $DoubleQuotesParameter
     , $DoubleQuotesNestedBracketParameter
     , $WrapPipeParameter
+    , $ToggleCaseParameter
     , $WherePipeParameter
     , $SelectPipeParameter
     , $rgToNvimParameters
