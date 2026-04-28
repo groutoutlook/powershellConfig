@@ -15,7 +15,7 @@ function omniSearchObsidian {
 # Parse args into pure tokens and dash args (modular helper)
 function Get-SearchArgs {
     param(
-        [Parameter(ValueFromRemainingArguments=$true)]
+        [Parameter(ValueFromRemainingArguments = $true)]
         [object[]]$InputArgs
     )
     $isDashOption = {
@@ -93,22 +93,26 @@ function rgj
 
             # Hardcoded permutations per permuteCount
             switch ($permuteCount) {
-                2 { $permutations = @( @(1,0) ,@()) }
-                3 { $permutations = @(
-                        @(0,2,1), @(1,0,2), @(1,2,0), @(2,0,1), @(2,1,0)
-                    ) }
-                4 { $permutations = @(
-                        @(0,1,3,2), @(0,2,1,3), @(0,2,3,1), @(0,3,1,2), @(0,3,2,1),
-                        @(1,0,2,3), @(1,0,3,2), @(1,2,0,3), @(1,2,3,0), @(1,3,0,2), @(1,3,2,0),
-                        @(2,0,1,3), @(2,0,3,1), @(2,1,0,3), @(2,1,3,0), @(2,3,0,1), @(2,3,1,0),
-                        @(3,0,1,2), @(3,0,2,1), @(3,1,0,2), @(3,1,2,0), @(3,2,0,1), @(3,2,1,0)
-                    ) }
+                2 { $permutations = @( @(1, 0) , @()) }
+                3 {
+                    $permutations = @(
+                        @(0, 2, 1), @(1, 0, 2), @(1, 2, 0), @(2, 0, 1), @(2, 1, 0)
+                    ) 
+                }
+                4 {
+                    $permutations = @(
+                        @(0, 1, 3, 2), @(0, 2, 1, 3), @(0, 2, 3, 1), @(0, 3, 1, 2), @(0, 3, 2, 1),
+                        @(1, 0, 2, 3), @(1, 0, 3, 2), @(1, 2, 0, 3), @(1, 2, 3, 0), @(1, 3, 0, 2), @(1, 3, 2, 0),
+                        @(2, 0, 1, 3), @(2, 0, 3, 1), @(2, 1, 0, 3), @(2, 1, 3, 0), @(2, 3, 0, 1), @(2, 3, 1, 0),
+                        @(3, 0, 1, 2), @(3, 0, 2, 1), @(3, 1, 0, 2), @(3, 1, 2, 0), @(3, 2, 0, 1), @(3, 2, 1, 0)
+                    ) 
+                }
             }
 
             $found = $false
             foreach ($p in $permutations) {
                 # HACK: this is the fault of typesystem to demote the type of array[] to array.
-                if($p.Count -eq 0) { continue } 
+                if ($p.Count -eq 0) { continue } 
                 $newTerms = @()
                 foreach ($idx in $p) { $newTerms += $terms[$idx] }
                 $newTerms += $tail
@@ -263,7 +267,7 @@ function Get-PathFromFiles() {
 }
 
 function zsh {
-    wsl $args --cd ~
+    wsl $args --cd /home/golk
 }
 
 # INFO: since some of the cli utils take quote as exact match, have to invoke like this.

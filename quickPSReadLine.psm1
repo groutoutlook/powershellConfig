@@ -675,7 +675,7 @@ $smartKillWordParameters = @{
 }
 
 $ExtraKillWord1Parameters = @{
-    Key              = @('Alt+w','alt+d')
+    Key              = @('Alt+w', 'alt+d')
     BriefDescription = 'Smarter kill word '
     LongDescription  = 'Kill Forward, but hit ceiling then kill backward.'
     ScriptBlock      = {

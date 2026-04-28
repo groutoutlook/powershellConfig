@@ -71,15 +71,16 @@ function global:Restart-Profile($option = "env") {
 Set-Alias -Name repro -Value Restart-Profile
 function cdcb(
     [Parameter(ValueFromPipeline = $true)]
-    $defaultDir = (Get-Clipboard)
+    $defaultDir = (Get-Clipboard),
+    [switch]$outHost
 ) {
     $copiedPath = ($defaultDir -replace '"')
     $property = Get-Item $copiedPath
     if ($property.PSIsContainer -eq $true) {
-        Set-Location $copiedPath
+        if ($outHost) { Write-Output $copiedPath } else { Set-Location $copiedPath }
     }
     else {
-        Set-Location (Split-Path -Path $copiedPath -Parent)
+        if ($outHost) { Write-Output $copiedPath } else { Set-Location (Split-Path -Path $copiedPath -Parent) }
     }
 }
 
@@ -88,9 +89,10 @@ function Set-LocationWhere(
         # Mandatory = $true,
         ValueFromPipeline = $true
     )]
-    $files = (Get-Clipboard)
+    $files = (Get-Clipboard),
+    [switch]$outHost
 ) {
-    $whichBackend = "scoop which" # INFO: default is `which` that windows provide. but this return a list.
+    $whichBackend = "scoop w" # INFO: default is `which` that windows provide. but this return a list.
     try {
         $tryWhichCommand = Invoke-Expression "$whichBackend $files" -ErrorAction SilentlyContinue
         # $initialInfo = Get-Command $files 
@@ -123,12 +125,13 @@ function Set-LocationWhere(
                     else {
                         $finalBinariesPath = $files
                     }
-                    Set-Location (Split-Path $finalBinariesPath -Parent)
+                    $targetPath = Split-Path $finalBinariesPath -Parent
+                    if ($outHost) { Write-Output $targetPath } else { Set-Location $targetPath }
                 }
                 else {
                     echo "cdcb now."
                     # other extensions 
-                    cdcb $files
+                    cdcb -defaultDir $files -outHost:$outHost
                 }
                 ; break; 
             }
@@ -137,11 +140,19 @@ function Set-LocationWhere(
                 $definition = ($commandInfo).Source
                 $ModuleInfo = Get-Module $commandInfo.Source
                 $ModulePath = $ModuleInfo.Path
-                $linkInfo = Format-Hyperlink $commandInfo.Source $ModulePath
+                $ScriptFile = $commandInfo.ScriptBlock.File
+                $resolvedPath = if ($ScriptFile) { $ScriptFile } else { $ModulePath }
+                
+                $linkInfo = Format-Hyperlink $commandInfo.Source $resolvedPath
 
-                Write-Host "function from $linkInfo module." -ForegroundColor Yellow -BackgroundColor DarkBlue
+                Write-Host "function from $linkInfo module/script." -ForegroundColor Yellow -BackgroundColor DarkBlue
                 Write-Host $commandInfo.Definition
-                Set-Location (Split-Path $ModulePath -Parent)	
+                if ($resolvedPath) {
+                    $targetPath = Split-Path $resolvedPath -Parent
+                    if ($outHost) { Write-Output $targetPath } else { Set-Location $targetPath }
+                } else {
+                    Write-Error "Could not find a valid file path for this function."
+                }
             }
 
             "Alias" {
@@ -152,7 +163,7 @@ function Set-LocationWhere(
 
                 Write-Host "alias of $definition , source: $linkInfo" -ForegroundColor Yellow -BackgroundColor Black
                 $definitionInfo = Get-Command $definition
-                Set-LocationWhere $definitionInfo.Name
+                Set-LocationWhere $definitionInfo.Name -outHost:$outHost
             }
 
             "ExternalScript" {
@@ -161,9 +172,8 @@ function Set-LocationWhere(
                 $linkInfo = Format-Hyperlink $scriptName $commandInfo.Source
                 Write-Host "Script from $linkInfo." -ForegroundColor Yellow -BackgroundColor DarkBlue
 
-                $fileName = ($files)
                 try {
-                    $ScriptContent = Get-Content "$env:LOCALAPPDATA/shims/$fileName.ps1" 
+                    $ScriptContent = Get-Content $definition -ErrorAction Stop
                     Write-Host $ScriptContent -BackgroundColor DarkGreen -ForegroundColor White
                     
                     # Try to extract path from variable assignments like $path = '...'
@@ -171,28 +181,29 @@ function Set-LocationWhere(
                     if ($pathLine) {
                         $extractedPath = $Matches[1]
                         Write-Host "Extracted path: $extractedPath" -ForegroundColor Cyan
-                        cdcb $extractedPath
+                        cdcb -defaultDir $extractedPath -outHost:$outHost
                     }
                     else {
                         # Fallback to original method
                         Write-Output $ScriptContent |`
                                 Select-Object -Index 0 |`
-                                Get-PathFromFiles | cdcb
+                                Get-PathFromFiles | cdcb -outHost:$outHost
                     }
                 }
                 catch {
                     Write-Error "Had tried, still failed on shim."
-                    Set-Location (Split-Path $definition -Parent)	
+                    $targetPath = Split-Path $definition -Parent
+                    if ($outHost) { Write-Output $targetPath } else { Set-Location $targetPath }	
                 }
             }
 
             default { 
                 Write-Host "what... files?" -ForegroundColor Red -BackgroundColor Yellow
-                $fileName = ($files)
+                $fileName = ($files -replace '\.ps1$', '')
                 try {
-                    Get-Content "$env:LOCALAPPDATA/shims/$fileName.ps1" |`
+                    Get-Content "$env:LOCALAPPDATA/shims/$fileName.ps1" -ErrorAction Stop |`
                             Select-Object -Index 0 |`
-                            Get-PathFromFiles | cdcb
+                            Get-PathFromFiles | cdcb -outHost:$outHost
                 }
                 catch {
                     Write-Error "Had tried, still failed."
@@ -202,7 +213,8 @@ function Set-LocationWhere(
     }
     else {
         $finalBinariesPath = $commandInfo | % { $_.Source } | fzf
-        Set-Location (Split-Path ($finalBinariesPath) -Parent)
+        $targetPath = Split-Path ($finalBinariesPath) -Parent
+        if ($outHost) { Write-Output $targetPath } else { Set-Location $targetPath }
     }
 }
 
