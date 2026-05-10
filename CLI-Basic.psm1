@@ -651,10 +651,35 @@ function Add-LyricFile {
 }
 
 function Add-NextTrack {
-    param([string]$Pattern)
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$Pattern
+    )
     
     $audioDirQuery = "3-audio"
     
+    $patternText = ($Pattern -join ' ').Trim()
+    if (-not $patternText) {
+        Write-Warning "Please provide a search pattern."
+        return
+    }
+
+    # Determine whether the input is intended as a regex.
+    $regexMeta = '[\^\$\.\*\+\?\(\)\[\]\{\}\\\|]'
+    $isRegex = $patternText -match $regexMeta
+    $words = $patternText -split '\s+' | Where-Object { $_ -ne '' }
+
+    if (-not $isRegex -and $words.Count -gt 1) {
+        # Interpret multiple separate words as a broad wildcard match.
+        $pattern = ($words | ForEach-Object { [regex]::Escape($_) }) -join '.*'
+    }
+    elseif (-not $isRegex) {
+        $pattern = [regex]::Escape($patternText)
+    }
+    else {
+        $pattern = $patternText
+    }
+
     # Resolve directory
     try {
         $baseDir = (zoxide query $audioDirQuery)
@@ -670,7 +695,10 @@ function Add-NextTrack {
     }
     
     # Try to find the file
-    $targetFile = Get-ChildItem -Path $baseDir -Recurse -File -Filter "*$Pattern*" | Where-Object { $_.Extension -match "\.(mkv|webm)$" } | Select-Object -First 1
+    $filterFirst = if ($words.Count -gt 0) { "*$($words[0])*" } else { '*'}
+    $targetFile = Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -match '\.(mkv|webm|flac|ogg)$' -and $_.Name -match $pattern } |
+        Select-Object -First 1
     
     if (-not $targetFile) {
         Write-Warning "No matching audio file found."
@@ -680,7 +708,7 @@ function Add-NextTrack {
     $filePath = $targetFile.FullName
     Write-Host "Queueing next: $filePath" -ForegroundColor Cyan
     
-    $normalizedPath = $filePath.Replace('\', '/')
+    $normalizedPath = $filePath.Replace('\\', '/')
     $command = "loadfile `"$normalizedPath`" insert-next"
 
     Send-MpvCommand -Command $command
