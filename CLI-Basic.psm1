@@ -606,10 +606,31 @@ function Send-MpvCommand {
 }
 
 function Add-LyricFile {
-    param([string]$Pattern, $delay)
-    
+    param(
+        [Parameter(ValueFromRemainingArguments = $true)]
+        [string[]]$Args
+    )
+
     $audioDirQuery = "3-audio"
-    
+    $parsed = Get-SearchArgs -InputArgs $Args
+    $pureTokens = @($parsed.PureTokens)
+
+    if (-not $pureTokens -or $pureTokens.Count -eq 0) {
+        Write-Warning "Please provide a lyric file search pattern."
+        return
+    }
+
+    $delay = $null
+    if ($pureTokens.Count -gt 1 -and ($pureTokens[-1] -as [int]) -ne $null) {
+        $delay = [int]$pureTokens[-1]
+        $pureTokens = $pureTokens[0..($pureTokens.Count - 2)]
+    }
+
+    if (-not $pureTokens -or $pureTokens.Count -eq 0) {
+        Write-Warning "Please provide a lyric search pattern before the delay value."
+        return
+    }
+
     # Resolve directory
     try {
         $baseDir = (zoxide query $audioDirQuery)
@@ -623,9 +644,17 @@ function Add-LyricFile {
         Write-Warning "Directory not found for query '$audioDirQuery'."
         return
     }
-    
-    # Try to find the file
-    $files = Get-ChildItem -Path $baseDir -Recurse -File -Filter "*$Pattern*" | Where-Object { $_.Extension -eq ".lrc" -and $_.Name -notmatch "orig\.lrc$" }
+
+    $build = Build-PatternFromPureTokens -PureTokens $pureTokens
+    $pattern = $build.Pattern
+    if (-not $pattern) {
+        Write-Warning "Please provide a valid lyric search pattern."
+        return
+    }
+
+    $filterFirst = if ($pureTokens.Count -gt 0) { "*$($pureTokens[0])*" } else { '*' }
+    $files = Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
+        Where-Object { $_.Extension -eq ".lrc" -and $_.Name -notmatch "orig\.lrc$" -and $_.Name -match $pattern }
     
     $targetFile = $files | Select-Object -First 1
     
@@ -638,17 +667,14 @@ function Add-LyricFile {
     Write-Host "Dropping: $filePath" -ForegroundColor Cyan
     
     $normalizedPath = $filePath.Replace('\', '/')
-    $command = "sub-add `"$normalizedPath`""
-
-    Send-MpvCommand -Command $command
+    Send-MpvCommand -Command "sub-add `"$normalizedPath`""
 
     if ($delay -ne $null) {
-        $command = "set sub-delay $delay/1000"
-        Send-MpvCommand -Command $Command
+        Send-MpvCommand -Command "set sub-delay $delay/1000"
+        Write-Host "Set subtitle delay to $delay ms" -ForegroundColor Cyan
     }
-        
-
 }
+
 
 function Add-NextTrack {
     param(
@@ -708,7 +734,7 @@ function Add-NextTrack {
     $filePath = $targetFile.FullName
     Write-Host "Queueing next: $filePath" -ForegroundColor Cyan
     
-    $normalizedPath = $filePath.Replace('\\', '/')
+    $normalizedPath = $filePath.Replace('\\', '/').Replace('\', '/') # racist toward `\`.
     $command = "loadfile `"$normalizedPath`" insert-next"
 
     Send-MpvCommand -Command $command
