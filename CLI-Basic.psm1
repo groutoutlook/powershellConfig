@@ -682,13 +682,22 @@ function Add-NextTrack {
         [string[]]$Pattern
     )
     
-    $audioDirQuery = "3-audio"
-    
     $patternText = ($Pattern -join ' ').Trim()
     if (-not $patternText) {
-        Write-Warning "Please provide a search pattern."
+        Write-Warning "Please provide a search pattern or URL."
         return
     }
+
+    # Smart handle HTTP/HTTPS links — queue directly to mpv
+    if ($patternText -match '^https?://') {
+        $url = $patternText
+        Write-Host "Queueing URL: $url" -ForegroundColor Cyan
+        $command = "loadfile `"$url`" insert-next"
+        Send-MpvCommand -Command $command
+        return
+    }
+
+    $audioDirQuery = "3-audio"
 
     # Determine whether the input is intended as a regex.
     $regexMeta = '[\^\$\.\*\+\?\(\)\[\]\{\}\\\|]'
