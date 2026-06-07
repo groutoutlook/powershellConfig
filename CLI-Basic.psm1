@@ -781,6 +781,11 @@ function b {
             return
         }
 
+        if ($RemainingArgs | Where-Object { $_ -is [string] -and $_ -match '\.md$' } | Select-Object -First 1) {
+            mdcat @RemainingArgs
+            return
+        }
+
         bat @RemainingArgs
     }
 }
