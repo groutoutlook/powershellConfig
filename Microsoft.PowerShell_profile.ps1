@@ -259,7 +259,8 @@ function global:initProfileEnv {
     $Env:p7settingDir = "D:\ProgramDataD\MiscLang\24.01-PowerShell\proj\powershellConfig"
     $Env:pipxLocalDir = "~\.local\bin"
     $Env:usrbinD = "D:\usr\bin"
-	
+	$env:XDG_CONFIG_HOME = $env:HOME # that's sometimes needed.
+
     $diradd = @(
         $Env:usrbinD
         , $Env:pipxLocalDir
