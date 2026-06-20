@@ -50,20 +50,20 @@ function Get-Playlistmpv(
                 ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
         }
         # mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0 --sub-pos=20
-        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
+        mpv --input-ipc-server=\\.\pipe\mpv-ipc --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
     }
     elseif ($Mode -eq "rg") {
         if ($stringSearch -ne "") {
             $finalPattern = $stringSearch -join ".*"
             rg $finalPattern $jtb["ms"] -C 5 | ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
         }
-        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
+        mpv --input-ipc-server=\\.\pipe\mpv-ipc --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
     }
     elseif ($Mode -eq "b") {
         $query = 'spacing'
         rg $query -M 400 (zoxide query obs) |
             ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
-        mpv --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=no --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
+        mpv --input-ipc-server=\\.\pipe\mpv-ipc --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=no --ytdl-raw-options="cookies-from-browser=firefox" --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
     }
 }
 
@@ -91,7 +91,7 @@ function mpvc(
 
         Get-Playlistmpv ($strings)
         # INFO: supress output from start-job.
-        (pwsh -Command "mpv --playlist=`"$global:playlistTemp`"" &) | Out-Null
+        (pwsh -Command "mpv --input-ipc-server=\\.\pipe\mpv-ipc --playlist=`"$global:playlistTemp`"" &) | Out-Null
     }
     else {
         Get-Playlistmpv (Get-Clipboard)

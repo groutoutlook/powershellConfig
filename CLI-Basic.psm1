@@ -1,3 +1,6 @@
+using namespace System.IO
+using namespace System.IO.Pipes
+
 # CLI-specific env var.
 $env:EZA_CONFIG_DIR = "$env:USERPROFILE\.config\eza"
 $env:_ZO_FZF_OPTS = "--height=35% --bind one:accept"
@@ -580,29 +583,15 @@ public class Win32DragDrop {
 "@
 
 function Send-MpvCommand {
-    param([string]$Command)
-    
-    # Find MPV
-    $mpvProc = Get-Process -Name mpv -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-    if (-not $mpvProc) {
-        Write-Warning "MPV is not running."
-        return
-    }
-
-    # Focus MPV
-    [QuickWin32]::SetForegroundWindow($mpvProc.MainWindowHandle)
-    Start-Sleep -Milliseconds 200
-
-    # Open console
-    [System.Windows.Forms.SendKeys]::SendWait("``") 
-    Start-Sleep -Milliseconds 100
-    
-    # Type command
-    [System.Windows.Forms.SendKeys]::SendWait($Command)
-    Start-Sleep -Milliseconds 100
-    
-    # Execute
-    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}{ESC}")
+    param([string]$Command, [string[]]$Arguments)
+    $json = @{command = @($Command) + $Arguments} | ConvertTo-Json -Compress
+    try {
+        $pipe = [NamedPipeClientStream]::new(".", "mpv-ipc", [PipeDirection]::InOut)
+        $pipe.Connect(2000)
+        $writer = [StreamWriter]::new($pipe); $writer.AutoFlush = $true; $writer.WriteLine($json)
+        $response = ([StreamReader]::new($pipe)).ReadLine()
+        if ($response -and ($response | ConvertFrom-Json).error -ne "success") { Write-Warning "mpv: $response" }
+    } catch { Write-Warning "mpv IPC: $_" } finally { if ($pipe) { $pipe.Dispose() } }
 }
 
 function Add-LyricFile {
@@ -667,10 +656,10 @@ function Add-LyricFile {
     Write-Host "Dropping: $filePath" -ForegroundColor Cyan
     
     $normalizedPath = $filePath.Replace('\', '/')
-    Send-MpvCommand -Command "sub-add `"$normalizedPath`""
+    Send-MpvCommand -Command "sub-add" -Arguments @($normalizedPath)
 
     if ($delay -ne $null) {
-        Send-MpvCommand -Command "set sub-delay $delay/1000"
+        Send-MpvCommand -Command "set_property" -Arguments @("sub-delay", ($delay/1000))
         Write-Host "Set subtitle delay to $delay ms" -ForegroundColor Cyan
     }
 }
@@ -692,8 +681,7 @@ function Add-NextTrack {
     if ($patternText -match '^https?://') {
         $url = $patternText
         Write-Host "Queueing URL: $url" -ForegroundColor Cyan
-        $command = "loadfile `"$url`" insert-next"
-        Send-MpvCommand -Command $command
+        Send-MpvCommand -Command "loadfile" -Arguments @($url, "insert-next")
         return
     }
 
@@ -744,9 +732,8 @@ function Add-NextTrack {
     Write-Host "Queueing next: $filePath" -ForegroundColor Cyan
     
     $normalizedPath = $filePath.Replace('\\', '/').Replace('\', '/') # racist toward `\`.
-    $command = "loadfile `"$normalizedPath`" insert-next"
 
-    Send-MpvCommand -Command $command
+    Send-MpvCommand -Command "loadfile" -Arguments @($normalizedPath, "insert-next")
 }
 
 Set-Alias -Name Add-Track -Value Add-NextTrack
