@@ -594,6 +594,7 @@ function Send-MpvCommand {
     } catch { Write-Warning "mpv IPC: $_" } finally { if ($pipe) { $pipe.Dispose() } }
 }
 
+Set-Alias -Name Lyric -Value Add-LyricFile
 function Add-LyricFile {
     param(
         [Parameter(ValueFromRemainingArguments = $true)]
@@ -665,6 +666,7 @@ function Add-LyricFile {
 }
 
 
+Set-Alias -Name Track -Value Add-NextTrack
 function Add-NextTrack {
     param(
         [Parameter(ValueFromRemainingArguments = $true)]
@@ -736,7 +738,6 @@ function Add-NextTrack {
     Send-MpvCommand -Command "loadfile" -Arguments @($normalizedPath, "insert-next")
 }
 
-Set-Alias -Name Add-Track -Value Add-NextTrack
 
 # HACK: a wrapper for bat
 function b {
