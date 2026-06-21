@@ -94,7 +94,7 @@ function Set-LocationWhere(
 ) {
     $whichBackend = "scoop w" # INFO: default is `which` that windows provide. but this return a list.
     try {
-        $tryWhichCommand = Invoke-Expression "$whichBackend $files" -ErrorAction SilentlyContinue
+        $tryWhichCommand = Invoke-Expression "$whichBackend $files 2>`$null" -ErrorAction SilentlyContinue
         # $initialInfo = Get-Command $files 
         $commandInfo = Get-Command $tryWhichCommand -ErrorAction SilentlyContinue
     }
@@ -110,7 +110,13 @@ function Set-LocationWhere(
             "Application" {
                 # INFO: We need something to detect executable here. Mostly exe files but there could also be other type as well.
                 if (($commandInfo.Extension -match "exe|cmd")) {
-                    $listBinaries = Invoke-Expression "(Resolve-Path ($whichBackend $files)).ToString()"
+                    $scoopOut = Invoke-Expression "$whichBackend $files 2>`$null" -ErrorAction SilentlyContinue
+                    if ($scoopOut -and (Test-Path $scoopOut -ErrorAction Ignore)) {
+                        $listBinaries = (Resolve-Path $scoopOut).ToString()
+                    } else {
+                        # scoop failed or broken shim — use what Get-Command already resolved
+                        $listBinaries = $commandInfo.Source
+                    }
 					
                     try {
                         $fileType = (${listBinaries}?.PsObject.TypeNames[0]) 
@@ -171,6 +177,11 @@ function Set-LocationWhere(
                 $scriptName = $commandInfo.Name
                 $linkInfo = Format-Hyperlink $scriptName $commandInfo.Source
                 Write-Host "Script from $linkInfo." -ForegroundColor Yellow -BackgroundColor DarkBlue
+
+                if (-not (Test-Path $definition -ErrorAction Ignore)) {
+                    Write-Error "Had tried, still failed on shim."
+                    return
+                }
 
                 try {
                     $ScriptContent = Get-Content $definition -ErrorAction Stop
