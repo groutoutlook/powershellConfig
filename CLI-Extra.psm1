@@ -236,3 +236,19 @@ function ytlf(
 Set-Alias -Name expl -Value Start-Explorer -Scope Global
 Set-Alias -Name exp -Value Start-Explorer -Scope Global
 Set-Alias -Name fz -Value pocof -Scope Global
+
+function global:gdl {
+    $dir = Get-Location
+    while ($dir) {
+        $justfile = Join-Path $dir 'justfile'
+        if (Test-Path $justfile) {
+            if (just --justfile $justfile --list 2>$null | Select-String '^\s*gdl\b') {
+                just --justfile $justfile gdl @args
+                return
+            }
+            break
+        }
+        $dir = Split-Path $dir -Parent
+    }
+    & "C:\Users\COHOTECH\scoop\apps\python\current\Scripts\gallery-dl.exe" @args
+}
