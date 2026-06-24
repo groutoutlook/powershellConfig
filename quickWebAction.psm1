@@ -94,9 +94,9 @@ function Resolve-InputUrl {
         }
     }
 
-    $match = [regex]::Match($Text, 'https?://[^\s)]+')
+    $match = [regex]::Match($Text, '(?<!\w)(https?://[^\s<>"''`\]\)\}]+)')
     if ($match.Success) {
-        return $match.Value
+        return $match.Value.TrimEnd('.', ',', ';', ':', '!', '?')
     }
 
     return $null
@@ -235,10 +235,11 @@ $parsing_id = {
             }
         }
         'mp.weixin.qq.com' {
-            # $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
-            # Extract last path segment (WeChat case)
-            $segments = $uri.Segments | ForEach-Object { $_.TrimEnd('/') }
-            $id = $segments[2]
+            # Extract the article slug from the WeChat path when present.
+            $segments = $uri.AbsolutePath.Trim('/').Split('/', [System.StringSplitOptions]::RemoveEmptyEntries)
+            if ($segments.Count -gt 0) {
+                $id = [uri]::UnescapeDataString($segments[-1]).ToLowerInvariant()
+            }
         }
         default {
             # Generic fallback matching pattern (hexadecimal strings of length)
