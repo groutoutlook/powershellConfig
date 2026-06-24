@@ -199,7 +199,7 @@ $QuickZoxideParameters = @{
     ScriptBlock      = $quickZoxide
 }
 
-# Setup for (!s) 
+# Setup for (!s)
 $IterateCommandParameters = @{
     Key              = 'Alt+s'
     BriefDescription = 'iterate commands in the current line.'
@@ -217,21 +217,21 @@ $IterateCommandParameters = @{
         # INFO: filtering with FindAll API.
         # HACK: dont understand the type and member syntaxes at all.read blog then?
         # [Abstract Syntax Tree - powershell.one](https://powershell.one/powershell-internals/parsing-and-tokenization/abstract-syntax-tree)
-    
+
         $asts = $ast.FindAll( {
                 $args[0] -is [System.Management.Automation.Language.ExpressionAst] `
-                    -and $args[0].Parent -is [System.Management.Automation.Language.CommandAst] 
+                    -and $args[0].Parent -is [System.Management.Automation.Language.CommandAst]
                 # -and $args[0].Parent -is [System.Management.Automation.Language.ExpressionAst]
                 # -and $args[0].Extent.StartOffset -ne $args[0].Parent.Extent.StartOffset
             }, $true)
-  
+
         if ($asts.Count -eq 0) {
             $lastCommand = (Get-History -Count 1).CommandLine
             [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $ast.Extent.Text.Length, $lastCommand)
             [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
             return
         }
-    
+
         $nextAst = $null
 
         if ($null -ne $arg) {
@@ -243,8 +243,8 @@ $IterateCommandParameters = @{
                     $nextAst = $ast
                     break
                 }
-            } 
-        
+            }
+
             if ($null -eq $nextAst) {
                 $nextAst = $asts[0]
             }
@@ -266,7 +266,77 @@ $IterateCommandParameters = @{
     }
 }
 
-# Setup for (^O) 
+$IterateCommandReverseParameters = @{
+    Key              = 'Alt+a'
+    BriefDescription = 'reverse iterate commands in the current line.'
+    LongDescription  = 'Reverse order of Alt+s.'
+    ScriptBlock      = {
+        param($key, $arg)   # The arguments are ignored in this example
+
+        $ast = $null
+        $tokens = $null
+        $errors = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState(
+            [ref]$ast, [ref]$tokens, [ref]$errors, [ref]$cursor
+        )
+
+        $asts = $ast.FindAll( {
+                $args[0] -is [System.Management.Automation.Language.ExpressionAst] `
+                    -and $args[0].Parent -is [System.Management.Automation.Language.CommandAst]
+            }, $true)
+
+        if ($asts.Count -eq 0) {
+            $lastCommand = (Get-History -Count 1).CommandLine
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $ast.Extent.Text.Length, $lastCommand)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+            return
+        }
+
+        $nextAst = $null
+
+        if ($null -ne $arg) {
+            $nextAst = $asts[$asts.Count - $arg]
+        }
+        else {
+            $selectionStart = $null
+            $selectionLength = $null
+            [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+            $cursorAnchor = $cursor
+            if ($selectionStart -ne -1) {
+                $cursorAnchor = $selectionStart
+            }
+
+            for ($i = $asts.Count - 1; $i -ge 0; $i--) {
+                if ($asts[$i].Extent.StartOffset -lt $cursorAnchor) {
+                    $nextAst = $asts[$i]
+                    break
+                }
+            }
+
+            if ($null -eq $nextAst) {
+                $nextAst = $asts[$asts.Count - 1]
+            }
+        }
+
+        $startOffsetAdjustment = 0
+        $endOffsetAdjustment = 0
+
+        if ($nextAst -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+            $nextAst.StringConstantType -ne [System.Management.Automation.Language.StringConstantType]::BareWord) {
+            $startOffsetAdjustment = 1
+            $endOffsetAdjustment = 2
+        }
+
+        # INFO: jump to previous symbols
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($nextAst.Extent.StartOffset + $startOffsetAdjustment)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SelectForwardChar($null, ($nextAst.Extent.EndOffset - $nextAst.Extent.StartOffset) - $endOffsetAdjustment)
+    }
+}
+
+# Setup for (^O)
 $omniSearchParameters = @{
     Key              = 'Ctrl+o'
     BriefDescription = 'Obsidian Mode'
@@ -1266,6 +1336,7 @@ $HandlerParameters = @(
     , $rgToNvimParameters
     , $rgToRggParameters
     , $IterateCommandParameters
+    , $IterateCommandReverseParameters
     , $OptionsSwitchParameters
     , $openEditorParameters
     , $pipeEditorParameters
