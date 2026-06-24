@@ -234,6 +234,12 @@ $parsing_id = {
                 $id = $matches['id']
             }
         }
+        'mp.weixin.qq.com' {
+            # $query = [System.Web.HttpUtility]::ParseQueryString($uri.Query)
+            # Extract last path segment (WeChat case)
+            $segments = $uri.Segments | ForEach-Object { $_.TrimEnd('/') }
+            $id = $segments[2]
+        }
         default {
             # Generic fallback matching pattern (hexadecimal strings of length)
             $id = $resolvedUrl | Select-String -All:$AllMatches $hexPattern | ForEach-Object { $_.Matches.Value }
