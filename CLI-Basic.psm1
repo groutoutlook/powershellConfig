@@ -412,6 +412,10 @@ function rei {
     just ei ($args.Length ? "$($args -join ' ')" : $null)
 }
 
+function rlobs {
+    just --justfile ~/hw/obs/justfile -d ~/hw/obs lint
+}
+
 Set-Alias -Name r -Value just -Scope Global -Option AllScope
 
 # INFO: more alias.

@@ -24,7 +24,7 @@ alias rim := reimport-module
 reimport-module:
     'gci *psm1 | %{:mo $_}'
 
-
 alias ei := edit-in-ide
+[group('dev')]
 edit-in-ide:
     code .
