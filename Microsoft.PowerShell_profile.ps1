@@ -113,7 +113,8 @@ function Set-LocationWhere(
                     $scoopOut = Invoke-Expression "$whichBackend $files 2>`$null" -ErrorAction SilentlyContinue
                     if ($scoopOut -and (Test-Path $scoopOut -ErrorAction Ignore)) {
                         $listBinaries = (Resolve-Path $scoopOut).ToString()
-                    } else {
+                    }
+                    else {
                         # scoop failed or broken shim — use what Get-Command already resolved
                         $listBinaries = $commandInfo.Source
                     }
@@ -156,7 +157,8 @@ function Set-LocationWhere(
                 if ($resolvedPath) {
                     $targetPath = Split-Path $resolvedPath -Parent
                     if ($outHost) { Write-Output $targetPath } else { Set-Location $targetPath }
-                } else {
+                }
+                else {
                     Write-Error "Could not find a valid file path for this function."
                 }
             }
@@ -270,7 +272,7 @@ function global:initProfileEnv {
     $Env:p7settingDir = "D:\ProgramDataD\MiscLang\24.01-PowerShell\proj\powershellConfig"
     $Env:pipxLocalDir = "~\.local\bin"
     $Env:usrbinD = "D:\usr\bin"
-	# $env:XDG_CONFIG_HOME = $env:HOME # that's sometimes needed.
+    # $env:XDG_CONFIG_HOME = $env:HOME # that's sometimes needed.
 
     $diradd = @(
         $Env:usrbinD

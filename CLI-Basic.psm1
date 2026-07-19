@@ -588,14 +588,15 @@ public class Win32DragDrop {
 
 function Send-MpvCommand {
     param([string]$Command, [string[]]$Arguments)
-    $json = @{command = @($Command) + $Arguments} | ConvertTo-Json -Compress
+    $json = @{command = @($Command) + $Arguments } | ConvertTo-Json -Compress
     try {
         $pipe = [NamedPipeClientStream]::new(".", "mpv-ipc", [PipeDirection]::InOut)
         $pipe.Connect(2000)
         $writer = [StreamWriter]::new($pipe); $writer.AutoFlush = $true; $writer.WriteLine($json)
         $response = ([StreamReader]::new($pipe)).ReadLine()
         if ($response -and ($response | ConvertFrom-Json).error -ne "success") { Write-Warning "mpv: $response" }
-    } catch { Write-Warning "mpv IPC: $_" } finally { if ($pipe) { $pipe.Dispose() } }
+    }
+    catch { Write-Warning "mpv IPC: $_" } finally { if ($pipe) { $pipe.Dispose() } }
 }
 
 Set-Alias -Name Lyric -Value Add-LyricFile
@@ -664,7 +665,7 @@ function Add-LyricFile {
     Send-MpvCommand -Command "sub-add" -Arguments @($normalizedPath)
 
     if ($delay -ne $null) {
-        Send-MpvCommand -Command "set_property" -Arguments @("sub-delay", ($delay/1000))
+        Send-MpvCommand -Command "set_property" -Arguments @("sub-delay", ($delay / 1000))
         Write-Host "Set subtitle delay to $delay ms" -ForegroundColor Cyan
     }
 }
@@ -724,7 +725,7 @@ function Add-NextTrack {
     }
     
     # Try to find the file
-    $filterFirst = if ($words.Count -gt 0) { "*$($words[0])*" } else { '*'}
+    $filterFirst = if ($words.Count -gt 0) { "*$($words[0])*" } else { '*' }
     $targetFile = Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension -match '\.(mkv|webm|flac|ogg)$' -and $_.Name -match $pattern } |
         Select-Object -First 1
