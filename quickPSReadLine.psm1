@@ -768,7 +768,7 @@ $ExtraKillWord1Parameters = @{
 }
 
 $helpParameter = @{
-    Key              = 'ctrl+b'
+    Key              = 'Ctrl+b'
     BriefDescription = 'help'
     LongDescription  = 'As brief.'
     ScriptBlock      = {
@@ -787,7 +787,7 @@ $helpParameter = @{
             $cursor = $null
         }
 
-        $pipeAll = "*>&1 | b"
+        $pipeAll = "*>&1 | b -lhelp"
         $mundaneHelpPattern = "help $pipeAll"
         $otherhelppattern = "--help $pipeAll"
         $helpPattern = "-h $pipeAll"
@@ -1357,7 +1357,7 @@ $PSReadLineOptions_Windows = @{
     EditMode                      = "Windows"
     HistoryNoDuplicates           = $true
     HistorySearchCursorMovesToEnd = $true
-    CompletionQueryItems           = 500
+    CompletionQueryItems          = 500
     PredictionViewStyle           = "ListView"
     Colors                        = @{
         "Command" = "#f9f1a5"
@@ -1368,7 +1368,7 @@ $PSReadLineOptions_Vi = @{
     EditMode                      = "Vi"
     HistoryNoDuplicates           = $true
     HistorySearchCursorMovesToEnd = $true
-    CompletionQueryItems           = 500
+    CompletionQueryItems          = 500
     PredictionViewStyle           = "ListView"
     Colors                        = @{
         "Command" = "#8181f7"
