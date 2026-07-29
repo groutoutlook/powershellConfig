@@ -412,7 +412,8 @@ function rei {
     just ei ($args.Length ? "$($args -join ' ')" : $null)
 }
 
-function rlo { # previously rlobs but I'm that lazy.
+function rlo {
+    # previously rlobs but I'm that lazy.
     just --justfile ~/hw/obs/justfile -d ~/hw/obs lint
 }
 

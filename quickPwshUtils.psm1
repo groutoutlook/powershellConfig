@@ -245,6 +245,60 @@ function quickSymLink($path = (Get-Clipboard)) {
         Write-Error "$path not a valid path."
     }
 }
+
+function Get-FileClipboardPath {
+    [CmdletBinding()]
+    param()
+
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
+        throw 'Get-FileClipboardPath is only supported on Windows.'
+    }
+
+    $readFileDropList = {
+        Add-Type -AssemblyName System.Windows.Forms
+
+        if (-not [System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
+            return @()
+        }
+
+        [string[]][System.Windows.Forms.Clipboard]::GetFileDropList()
+    }
+
+    $isSta = [Threading.Thread]::CurrentThread.GetApartmentState() -eq [Threading.ApartmentState]::STA
+    if ($isSta) {
+        $paths = @(& $readFileDropList)
+    }
+    else {
+        if (-not (Get-Command powershell.exe -ErrorAction SilentlyContinue)) {
+            throw 'Reading the Windows file clipboard requires Windows PowerShell (powershell.exe) in PATH.'
+        }
+
+        $helper = @'
+Add-Type -AssemblyName System.Windows.Forms
+if (-not [System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
+    exit 2
+}
+[string[]][System.Windows.Forms.Clipboard]::GetFileDropList()
+'@
+        $paths = @(& powershell.exe -NoLogo -NoProfile -NonInteractive -STA -Command $helper)
+        $exitCode = $LASTEXITCODE
+    }
+
+    if (-not $isSta -and $exitCode -eq 2) {
+        throw 'The clipboard does not contain files or folders copied from Explorer.'
+    }
+
+    if (-not $isSta -and $exitCode -and $exitCode -ne 0) {
+        throw "Could not read the Windows file clipboard (exit code $exitCode)."
+    }
+
+    if ($paths.Count -eq 0) {
+        throw 'The clipboard file-drop list is empty.'
+    }
+
+    return $paths
+}
+
 function swap_prompt {
     function global:prompt {
         echo "nothing, just PS:"
@@ -351,4 +405,5 @@ Set-Alias -Name rmrf -Value Remove-FullForce
 Set-Alias -Name cprf -Value Copy-FullForce
 Set-Alias -Name cpcb -Value Copy-FullForce
 Set-Alias -Name gti -Value Get-TypeInfo
+Set-Alias -Name gcbf -Value Get-FileClipboardPath
 # Export-ModuleMember -Function * -Alias *

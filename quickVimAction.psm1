@@ -29,8 +29,6 @@ $global:scriptingModuleList = @(
 
 
 function Import-MoreModule {
-    Invoke-Expression (&posh-fzf init | Out-String)
-    Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-PoshFzfSelectHistory }
     foreach ($module in $global:extraModuleList) {
         Import-Module -Name (Join-Path $env:p7settingDir $module) -Scope Global
     }
