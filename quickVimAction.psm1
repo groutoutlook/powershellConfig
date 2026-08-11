@@ -581,7 +581,42 @@ function :e {
 
 # INFO: function to switch between applications. Right now it's based on the Show-Window function.
 function :s {
-    Show-Window "$args"
+    param(
+        [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
+        [string[]] $CommandArgs
+    )
+
+    $useVirtualDesktop = $CommandArgs.Count -eq 1 -and $CommandArgs[0] -match '^\d+$'
+    $useVirtualDesktopCli = $CommandArgs.Count -gt 0 -and $CommandArgs[0] -in @("virtualdesktop", "vd")
+
+    if ($useVirtualDesktop -or $useVirtualDesktopCli) {
+        if ($useVirtualDesktop) {
+            $virtualDesktopArgs = [string[]]@("/Switch:$($CommandArgs[0])")
+        }
+        elseif ($CommandArgs.Count -gt 1) {
+            $virtualDesktopArgs = [string[]]$CommandArgs[1..($CommandArgs.Count - 1)]
+        }
+        else {
+            $virtualDesktopArgs = [string[]]@("/?")
+        }
+
+        $virtualDesktopCommand = Get-Command virtualdesktop -ErrorAction Stop
+        $virtualDesktopPath = $virtualDesktopCommand.Source
+
+        # Calling the executable directly avoids PowerShell splitting /? when
+        # the command is exposed through a .ps1 shim inside a module.
+        if ($virtualDesktopCommand.CommandType -eq "ExternalScript") {
+            $shimContent = Get-Content -LiteralPath $virtualDesktopCommand.Source -Raw -ErrorAction SilentlyContinue
+            if ($shimContent -match '(?m)^\s*\$path\s*=\s*[''"](?<path>[^''"]+)[''"]') {
+                $virtualDesktopPath = $Matches.path
+            }
+        }
+
+        & $virtualDesktopPath @virtualDesktopArgs
+        return
+    }
+
+    Show-Window ($CommandArgs -join " ")
 }
 function :k {
     if ($args.Length -eq 0) {
