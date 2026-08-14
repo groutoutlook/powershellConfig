@@ -600,6 +600,33 @@ function Send-MpvCommand {
     catch { Write-Warning "mpv IPC: $_" } finally { if ($pipe) { $pipe.Dispose() } }
 }
 
+function Select-FileWithFzf {
+    param(
+        [System.IO.FileInfo[]]$Files,
+        [string]$Prompt = "Select file> "
+    )
+
+    if (-not $Files -or $Files.Count -eq 0) {
+        return
+    }
+
+    if ($Files.Count -eq 1) {
+        return $Files[0]
+    }
+
+    if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) {
+        Write-Warning "Multiple matching files found, but fzf is not available."
+        return
+    }
+
+    $selectedPath = @($Files.FullName | & fzf --prompt $Prompt | Select-Object -First 1)
+    if (-not $selectedPath) {
+        return
+    }
+
+    return $Files | Where-Object { $_.FullName -eq $selectedPath[0] } | Select-Object -First 1
+}
+
 Set-Alias -Name Lyric -Value Add-LyricFile
 function Add-LyricFile {
     param(
@@ -649,10 +676,11 @@ function Add-LyricFile {
     }
 
     $filterFirst = if ($pureTokens.Count -gt 0) { "*$($pureTokens[0])*" } else { '*' }
-    $files = Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
+    $files = @(Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension -eq ".lrc" -and $_.Name -notmatch "orig\.lrc$" -and $_.Name -match $pattern }
+    )
     
-    $targetFile = $files | Select-Object -First 1
+    $targetFile = Select-FileWithFzf -Files $files -Prompt "Select lyric> "
     
     if (-not $targetFile) {
         Write-Warning "No matching lyric file found."
@@ -727,9 +755,11 @@ function Add-NextTrack {
     
     # Try to find the file
     $filterFirst = if ($words.Count -gt 0) { "*$($words[0])*" } else { '*' }
-    $targetFile = Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
+    $files = @(Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension -match '\.(mkv|webm|flac|ogg)$' -and $_.Name -match $pattern } |
-        Select-Object -First 1
+        Sort-Object FullName
+    )
+    $targetFile = Select-FileWithFzf -Files $files -Prompt "Select track> "
     
     if (-not $targetFile) {
         Write-Warning "No matching audio file found."
