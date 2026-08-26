@@ -1583,9 +1583,14 @@ function setAllHandler() {
     }
     # INFO: Add Vi Handler.
     $currentMode = (Get-PSReadLineOption).EditMode 
-    
-    Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-TvShellHistory }
-    Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock {Invoke-TvSmartAutocomplete}
+    Invoke-Expression (&posh-fzf init | Out-String)
+
+    # Customize the key bindings to your liking
+    Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-PoshFzfSelectHistory }
+    Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock { Invoke-PoshFzfSelectItems }
+    Set-PSReadLineKeyHandler -Key 'Alt+c' -ScriptBlock { Invoke-PoshFzfChangeDirectory }
+    #Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-TvShellHistory }
+    #Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock {Invoke-TvSmartAutocomplete}
     if ($currentMode -eq "Vi") {
         foreach ($handler in $ViHandlerParameters) {
             Set-PSReadLineKeyHandler @handler
