@@ -677,7 +677,7 @@ function Add-LyricFile {
 
     $filterFirst = if ($pureTokens.Count -gt 0) { "*$($pureTokens[0])*" } else { '*' }
     $files = @(Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -eq ".lrc" -and $_.Name -notmatch "orig\.lrc$" -and $_.Name -match $pattern }
+        Where-Object { $_.Extension -in @(".lrc",".vtt") -and $_.Name -notmatch "orig\.lrc$" -and $_.Name -match $pattern }
     )
     
     $targetFile = Select-FileWithFzf -Files $files -Prompt "Select lyric> "

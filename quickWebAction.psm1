@@ -78,7 +78,6 @@ function Search-DuckDuckGo {
     }
 }
 
-Set-Alias -Name dg -Value Search-DuckDuckGo
 Set-Alias -Name gg -Value Search-DuckDuckGo
 
 function Resolve-InputUrl {
