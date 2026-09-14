@@ -588,7 +588,11 @@ public class Win32DragDrop {
 "@
 
 function Send-MpvCommand {
-    param([string]$Command, [string[]]$Arguments)
+    param(
+        [string]$Command,
+        [string[]]$Arguments,
+        [switch]$ReturnResponse
+    )
     $json = @{command = @($Command) + $Arguments } | ConvertTo-Json -Compress
     try {
         $pipe = [NamedPipeClientStream]::new(".", "mpv-ipc", [PipeDirection]::InOut)
@@ -596,8 +600,28 @@ function Send-MpvCommand {
         $writer = [StreamWriter]::new($pipe); $writer.AutoFlush = $true; $writer.WriteLine($json)
         $response = ([StreamReader]::new($pipe)).ReadLine()
         if ($response -and ($response | ConvertFrom-Json).error -ne "success") { Write-Warning "mpv: $response" }
+        # Most commands historically had no pipeline output. Read-only callers
+        # can opt into the raw response when they need returned data.
+        if ($ReturnResponse) { return $response }
     }
     catch { Write-Warning "mpv IPC: $_" } finally { if ($pipe) { $pipe.Dispose() } }
+}
+
+function Get-MpvProperty {
+    param([Parameter(Mandatory = $true)][string]$Name)
+
+    $response = Send-MpvCommand -Command "get_property" -Arguments @($Name) -ReturnResponse
+    if (-not $response) { return $null }
+
+    try {
+        $result = $response | ConvertFrom-Json
+        if ($result.error -eq "success") { return $result.data }
+    }
+    catch {
+        Write-Warning "Could not parse mpv response for property '$Name'."
+    }
+
+    return $null
 }
 
 function Select-FileWithFzf {
@@ -706,18 +730,61 @@ function Add-NextTrack {
         [Parameter(ValueFromRemainingArguments = $true)]
         [string[]]$Pattern
     )
-    
-    $patternText = ($Pattern -join ' ').Trim()
+
+    # An optional trailing position selects the slot relative to the current
+    # item: [1] is the normal "insert next" slot, [2] is after the next song,
+    # and so on.
+    $patternTokens = @($Pattern)
+    $insertPosition = $null
+    if ($patternTokens.Count -gt 0) {
+        $positionToken = [string]$patternTokens[-1]
+        $positionMatch = [regex]::Match($positionToken, '^\[([1-9]\d*)\]$')
+        if ($positionMatch.Success) {
+            $insertPosition = [int64]$positionMatch.Groups[1].Value
+            $patternTokens = if ($patternTokens.Count -gt 1) {
+                @($patternTokens[0..($patternTokens.Count - 2)])
+            }
+            else { @() }
+        }
+        elseif ($positionToken -match '^\[\d+\]$') {
+            Write-Warning "Track position must be a positive integer (for example, [2])."
+            return
+        }
+    }
+
+    $patternText = ($patternTokens -join ' ').Trim()
     if (-not $patternText) {
         Write-Warning "Please provide a search pattern or URL."
         return
     }
 
+    $queueTrack = {
+        param([string]$Path)
+
+        if ($null -eq $insertPosition) {
+            $null = Send-MpvCommand -Command "loadfile" -Arguments @($Path, "insert-next")
+            return
+        }
+
+        # mpv's insert-at index is absolute and zero-based. Resolve the
+        # current item so [1] means immediately after it, [2] after one
+        # upcoming item, etc. If no item is active, use the requested slot
+        # from the start of the playlist.
+        $currentPosition = Get-MpvProperty -Name "playlist-pos"
+        $currentIndex = 0
+        if ($currentPosition -as [int] -ne $null -and [int]$currentPosition -ge 0) {
+            $currentIndex = [int]$currentPosition
+        }
+        $insertIndex = $currentIndex + [int]$insertPosition
+        $null = Send-MpvCommand -Command "loadfile" -Arguments @($Path, "insert-at", ([string]$insertIndex))
+    }
+    
     # Smart handle HTTP/HTTPS links — queue directly to mpv
     if ($patternText -match '^https?://') {
         $url = $patternText
-        Write-Host "Queueing URL: $url" -ForegroundColor Cyan
-        Send-MpvCommand -Command "loadfile" -Arguments @($url, "insert-next")
+        $positionLabel = if ($null -eq $insertPosition) { "next" } else { "slot [$insertPosition]" }
+        Write-Host "Queueing URL ($positionLabel): $url" -ForegroundColor Cyan
+        & $queueTrack $url
         return
     }
 
@@ -767,11 +834,12 @@ function Add-NextTrack {
     }
     
     $filePath = $targetFile.FullName
-    Write-Host "Queueing next: $filePath" -ForegroundColor Cyan
+    $positionLabel = if ($null -eq $insertPosition) { "next" } else { "slot [$insertPosition]" }
+    Write-Host ("Queueing {0}: {1}" -f $positionLabel, $filePath) -ForegroundColor Cyan
     
     $normalizedPath = $filePath.Replace('\\', '/').Replace('\', '/') # racist toward `\`.
 
-    Send-MpvCommand -Command "loadfile" -Arguments @($normalizedPath, "insert-next")
+    & $queueTrack $normalizedPath
 }
 
 
