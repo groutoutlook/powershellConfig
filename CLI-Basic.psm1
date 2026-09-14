@@ -593,18 +593,11 @@ function Send-MpvCommand {
         [string[]]$Arguments,
         [switch]$ReturnResponse
     )
-    $json = @{command = @($Command) + $Arguments } | ConvertTo-Json -Compress
-    try {
-        $pipe = [NamedPipeClientStream]::new(".", "mpv-ipc", [PipeDirection]::InOut)
-        $pipe.Connect(2000)
-        $writer = [StreamWriter]::new($pipe); $writer.AutoFlush = $true; $writer.WriteLine($json)
-        $response = ([StreamReader]::new($pipe)).ReadLine()
-        if ($response -and ($response | ConvertFrom-Json).error -ne "success") { Write-Warning "mpv: $response" }
-        # Most commands historically had no pipeline output. Read-only callers
-        # can opt into the raw response when they need returned data.
-        if ($ReturnResponse) { return $response }
+    if (Get-Command Send-MpvIpcCommand -ErrorAction SilentlyContinue) {
+        return Send-MpvIpcCommand -Command $Command -Arguments $Arguments -ReturnResponse:$ReturnResponse
     }
-    catch { Write-Warning "mpv IPC: $_" } finally { if ($pipe) { $pipe.Dispose() } }
+
+    Write-Warning "Send-MpvIpcCommand is unavailable; import quickPwshUtils.psm1 first."
 }
 
 function Get-MpvProperty {

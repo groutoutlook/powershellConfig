@@ -1430,7 +1430,8 @@ function Invoke-TvSmartAutocomplete {
     # Handle trailing space - if last char is space, we're starting a new word
     if ($lhs.Length -gt 0 -and $lhs[-1] -match '\s') {
         $lastWord = ""
-    } else {
+    }
+    else {
         $lastWord = if ($words.Count -gt 0) { $words[-1] } else { "" }
     }
 
@@ -1488,7 +1489,8 @@ function Invoke-TvSmartAutocomplete {
             # to avoid duplication
             $lhsWithoutLastWord = if ($lastWord.Length -gt 0) {
                 $lhs.Substring(0, $lhs.Length - $lastWord.Length)
-            } else {
+            }
+            else {
                 $lhs
             }
 
@@ -1590,7 +1592,7 @@ function setAllHandler() {
     #Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock { Invoke-PoshFzfSelectItems }
     #Set-PSReadLineKeyHandler -Key 'Alt+c' -ScriptBlock { Invoke-PoshFzfChangeDirectory }
     #Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-TvShellHistory }
-    Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock {Invoke-TvSmartAutocomplete}
+    Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock { Invoke-TvSmartAutocomplete }
     if ($currentMode -eq "Vi") {
         foreach ($handler in $ViHandlerParameters) {
             Set-PSReadLineKeyHandler @handler

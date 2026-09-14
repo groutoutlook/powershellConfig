@@ -59,7 +59,91 @@ public class QuickWin32 {
 }
 "@
 
-# INFO: Function to send keys to a specific window
+# Send one JSON IPC command to mpv. The normal endpoint is the Windows named
+# pipe `mpv-ipc` (or a Unix socket with that name); `/tmp/mpv-socket` is the
+# fallback endpoint used when the normal server is unavailable.
+function Send-MpvIpcCommand {
+    param(
+        [Parameter(Mandatory = $true)][string]$Command,
+        [string[]]$Arguments = @(),
+        [switch]$ReturnResponse,
+        [int]$TimeoutMilliseconds = 2000
+    )
+
+    $json = @{ command = @($Command) + $Arguments } | ConvertTo-Json -Compress
+    $isWindows = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+    $endpoints = if ($isWindows) {
+        @(
+            [PSCustomObject]@{ Label = 'mpv-ipc'; Kind = 'pipe'; Name = 'mpv-ipc'; Fallback = $false },
+            [PSCustomObject]@{ Label = '/tmp/mpv-socket'; Kind = 'pipe'; Name = 'tmp/mpv-socket'; Fallback = $true },
+            [PSCustomObject]@{ Label = '/tmp/mpv-socket'; Kind = 'pipe'; Name = 'mpv-socket'; Fallback = $true }
+        )
+    }
+    else {
+        @(
+            [PSCustomObject]@{ Label = 'mpv-ipc'; Kind = 'socket'; Name = 'mpv-ipc'; Fallback = $false },
+            [PSCustomObject]@{ Label = '/tmp/mpv-ipc'; Kind = 'socket'; Name = '/tmp/mpv-ipc'; Fallback = $false },
+            [PSCustomObject]@{ Label = '/tmp/mpv-socket'; Kind = 'socket'; Name = '/tmp/mpv-socket'; Fallback = $true }
+        )
+    }
+
+    $lastError = $null
+    foreach ($endpoint in $endpoints) {
+        $stream = $null
+        try {
+            if ($endpoint.Kind -eq 'pipe') {
+                $stream = [System.IO.Pipes.NamedPipeClientStream]::new('.', $endpoint.Name, [System.IO.Pipes.PipeDirection]::InOut)
+                $stream.Connect($TimeoutMilliseconds)
+            }
+            else {
+                $socket = [System.Net.Sockets.Socket]::new(
+                    [System.Net.Sockets.AddressFamily]::Unix,
+                    [System.Net.Sockets.SocketType]::Stream,
+                    [System.Net.Sockets.ProtocolType]::Unspecified
+                )
+                $socket.Connect([System.Net.Sockets.UnixDomainSocketEndPoint]::new($endpoint.Name))
+                $stream = [System.Net.Sockets.NetworkStream]::new($socket, $true)
+            }
+
+            $writer = [System.IO.StreamWriter]::new($stream)
+            $writer.AutoFlush = $true
+            $reader = [System.IO.StreamReader]::new($stream)
+
+            if ($endpoint.Fallback) {
+                $argumentText = if ($Arguments.Count) { " " + ($Arguments -join ' ') } else { '' }
+                $status = "mpv IPC fallback: $($endpoint.Label) | trying $Command$argumentText"
+                Write-Host $status -ForegroundColor Yellow
+                $statusJson = @{ command = @('show-text', $status, '3000') } | ConvertTo-Json -Compress
+                $writer.WriteLine($statusJson)
+                $null = $reader.ReadLine()
+            }
+
+            $writer.WriteLine($json)
+            $response = $reader.ReadLine()
+            if ($response) {
+                try {
+                    $parsed = $response | ConvertFrom-Json
+                    if ($parsed.error -ne 'success') { Write-Warning "mpv: $response" }
+                }
+                catch { Write-Warning "mpv returned an invalid IPC response: $response" }
+            }
+            if ($ReturnResponse) { return $response }
+            return
+        }
+        catch {
+            $lastError = $_
+        }
+        finally {
+            if ($stream) { $stream.Dispose() }
+        }
+    }
+
+    if ($lastError) {
+        Write-Warning "mpv IPC unavailable (tried mpv-ipc and /tmp/mpv-socket): $lastError"
+    }
+}
+
+# INFO: Function to send keys to a specific window (retained for non-mpv callers)
 function Send-Key {
     param (
         [string]$windowTitle,
@@ -79,14 +163,14 @@ function Send-Key {
 }
 
 function mpn {
-    Send-Key mpv '@'
-    [QuickWin32]::SetForegroundWindow([QuickWin32]::GetConsoleWindow())
+    Send-MpvIpcCommand -Command 'add chapter 1'
 }
 
 function mpns {
-    Send-Key mpv '>'
-    [QuickWin32]::SetForegroundWindow([QuickWin32]::GetConsoleWindow())
+    Send-MpvIpcCommand -Command 'playlist-next'
 }
+
+Set-Alias -Name mpcn -Value mpn -Scope Global -Option AllScope
 
 # INFO: quick create hashmap.
 function buildIndex
