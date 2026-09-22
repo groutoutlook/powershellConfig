@@ -119,4 +119,5 @@ function gitCloneClipboard(
 
 Set-Alias -Name gccb -Value gitCloneClipboard
 
-Set-Alias -Name gui -Value gitui
+# Set-Alias -Name gui -Value gitui
+Set-Alias -Name gui -Value gitu

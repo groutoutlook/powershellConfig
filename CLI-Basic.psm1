@@ -32,6 +32,29 @@ function Get-SearchArgs {
     return [PSCustomObject]@{ PureTokens = $pureTokens; DashArgs = $dashArgs }
 }
 
+function Join-SearchPattern {
+    param(
+        [object[]]$Terms,
+        [string]$PatternBetween,
+        [switch]$RequireNewline
+    )
+
+    if (-not $Terms -or $Terms.Count -eq 0) { return '' }
+    if (-not $RequireNewline -or $Terms.Count -lt 2) { return $Terms -join $PatternBetween }
+
+    $alternatives = for ($newlineIndex = 0; $newlineIndex -lt $Terms.Count - 1; $newlineIndex++) {
+        $parts = for ($index = 0; $index -lt $Terms.Count; $index++) {
+            if ($index -gt 0) {
+                if ($index - 1 -eq $newlineIndex) { '.*?\n.*?' } else { $PatternBetween }
+            }
+            $Terms[$index]
+        }
+        $parts -join ''
+    }
+
+    return '(?:' + ($alternatives -join '|') + ')'
+}
+
 # Build search pattern info from pure tokens (returns terms, patternBetween and extra dash args)
 function Build-PatternFromPureTokens {
     param(
@@ -53,15 +76,16 @@ function Build-PatternFromPureTokens {
 
     $patternBetween = if ($withinAmount -eq 0) { '.*?' } else { ".{0,$withinAmount}?" }
 
+    $requireNewline = $false
     if ($tokens.Count -gt 2 -and $tokens[-1] -eq '*n') {
         if ($tokens.Count -ge 2) { $tokens = $tokens[0..($tokens.Count - 2)] } else { $tokens = @() }
-        $patternBetween = '.*?\n?.*?'
+        $requireNewline = $true
         $extraDash += '-U'
     }
 
-    $pattern = if ($tokens.Count -gt 0) { $tokens -join $patternBetween } else { '' }
+    $pattern = Join-SearchPattern -Terms $tokens -PatternBetween $patternBetween -RequireNewline:$requireNewline
 
-    return [PSCustomObject]@{ Terms = $tokens; PatternBetween = $patternBetween; ExtraDash = $extraDash; Pattern = $pattern }
+    return [PSCustomObject]@{ Terms = $tokens; PatternBetween = $patternBetween; RequireNewline = $requireNewline; ExtraDash = $extraDash; Pattern = $pattern }
 }
 
 function rgj
@@ -78,6 +102,7 @@ function rgj
     $build = Build-PatternFromPureTokens -PureTokens $pureTokens
     $terms = @($build.Terms)
     $patternBetween = $build.PatternBetween
+    $requireNewline = $build.RequireNewline
     $extraDash = @($build.ExtraDash)
 
     $dashArgsCombined = @($dashArgs + $extraDash)
@@ -120,7 +145,7 @@ function rgj
                 foreach ($idx in $p) { $newTerms += $terms[$idx] }
                 $newTerms += $tail
 
-                $testPattern = if ($newTerms.Count -gt 0) { $newTerms -join $patternBetween } else { '' }
+                $testPattern = Join-SearchPattern -Terms $newTerms -PatternBetween $patternBetween -RequireNewline:$requireNewline
                 & rg -g '*Journal.md' -M 400 -A3 @dashArgsCombined -- $testPattern $obsPath
                 if ($?) {
                     $found = $true
