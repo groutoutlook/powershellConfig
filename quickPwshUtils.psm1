@@ -383,6 +383,91 @@ if (-not [System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
     return $paths
 }
 
+function Copy-FileClipboard {
+    <#
+    .SYNOPSIS
+        Copy files and folders from the Windows Explorer clipboard.
+
+    .DESCRIPTION
+        Reads the file-drop list created by Explorer (Ctrl+C/Ctrl+X) and copies
+        it into the current directory or the explicitly supplied destination.
+        Existing targets are rejected unless -Force is specified. Moving is
+        opt-in with -Move so a cut clipboard cannot remove a source by accident.
+    #>
+    [CmdletBinding(SupportsShouldProcess = $true)]
+    param(
+        [Parameter(Position = 0)]
+        [Alias('Path')]
+        [string]$Destination = (Get-Location).Path,
+
+        [switch]$Move,
+
+        [switch]$Force
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Destination)) {
+        throw 'A destination directory is required.'
+    }
+
+    try {
+        $destinationItem = Get-Item -LiteralPath $Destination -ErrorAction Stop
+    }
+    catch {
+        throw "Destination directory '$Destination' was not found."
+    }
+
+    if ($destinationItem.PSProvider.Name -ne 'FileSystem' -or -not $destinationItem.PSIsContainer) {
+        throw "Destination '$Destination' must be an existing filesystem directory."
+    }
+
+    $destinationRoot = [System.IO.Path]::GetFullPath($destinationItem.FullName)
+    $sources = @(Get-FileClipboardPath)
+
+    foreach ($source in $sources) {
+        try {
+            $sourceItem = Get-Item -LiteralPath ([string]$source) -ErrorAction Stop
+            if ($sourceItem.PSProvider.Name -ne 'FileSystem') {
+                throw "'$source' is not a filesystem path."
+            }
+
+            $sourcePath = [System.IO.Path]::GetFullPath($sourceItem.FullName)
+            $targetPath = Join-Path -Path $destinationRoot -ChildPath $sourceItem.Name
+
+            # Do not allow a directory to be copied into itself or a file to
+            # be copied over itself, even when -Force is requested.
+            $sourcePrefix = $sourcePath.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+            if ($sourcePath.Equals($destinationRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+                $destinationRoot.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase) -or
+                $targetPath.Equals($sourcePath, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "Destination '$destinationRoot' is inside the source '$sourcePath'."
+            }
+
+            if ((Test-Path -LiteralPath $targetPath) -and -not $Force) {
+                throw "Target already exists: '$targetPath'. Use -Force to overwrite it."
+            }
+
+            $action = if ($Move) { 'Move' } else { 'Copy' }
+            if ($PSCmdlet.ShouldProcess($targetPath, "$action '$sourcePath'")) {
+                if ($Move) {
+                    Move-Item -LiteralPath $sourcePath -Destination $destinationRoot -Force:$Force -ErrorAction Stop
+                }
+                else {
+                    Copy-Item -LiteralPath $sourcePath -Destination $destinationRoot -Recurse -Force:$Force -ErrorAction Stop
+                }
+            }
+
+            [pscustomobject]@{
+                SourcePath      = $sourcePath
+                DestinationPath = $targetPath
+                Operation       = if ($WhatIfPreference) { "$action (WhatIf)" } else { $action }
+            }
+        }
+        catch {
+            Write-Error "Could not process '$source': $($_.Exception.Message)"
+        }
+    }
+}
+
 function swap_prompt {
     function global:prompt {
         echo "nothing, just PS:"
@@ -487,7 +572,7 @@ Set-Alias -Name jpa -Value Join-Path -Scope Global -Option AllScope
 Set-Alias -Name mcm -Value Measure-Command
 Set-Alias -Name rmrf -Value Remove-FullForce 
 Set-Alias -Name cprf -Value Copy-FullForce
-Set-Alias -Name cpcb -Value Copy-FullForce
+Set-Alias -Name cpcb -Value Copy-FileClipboard
 Set-Alias -Name gti -Value Get-TypeInfo
 Set-Alias -Name gcbf -Value Get-FileClipboardPath
 # Export-ModuleMember -Function * -Alias *

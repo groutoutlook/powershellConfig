@@ -719,7 +719,7 @@ function Add-LyricFile {
 
     $filterFirst = if ($pureTokens.Count -gt 0) { "*$($pureTokens[0])*" } else { '*' }
     $files = @(Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -in @(".lrc",".vtt") -and $_.Name -notmatch "orig\.lrc$" -and $_.Name -match $pattern }
+            Where-Object { $_.Extension -in @(".lrc", ".vtt") -and $_.Name -notmatch "orig\.lrc$" -and $_.Name -match $pattern }
     )
     
     $targetFile = Select-FileWithFzf -Files $files -Prompt "Select lyric> "
@@ -841,8 +841,8 @@ function Add-NextTrack {
     # Try to find the file
     $filterFirst = if ($words.Count -gt 0) { "*$($words[0])*" } else { '*' }
     $files = @(Get-ChildItem -Path $baseDir -Recurse -File -Filter $filterFirst -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -match '\.(mkv|webm|flac|ogg)$' -and $_.Name -match $pattern } |
-        Sort-Object FullName
+            Where-Object { $_.Extension -match '\.(mkv|webm|flac|ogg)$' -and $_.Name -match $pattern } |
+            Sort-Object FullName
     )
     $targetFile = Select-FileWithFzf -Files $files -Prompt "Select track> "
     
