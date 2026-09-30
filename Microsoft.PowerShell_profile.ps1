@@ -305,6 +305,9 @@ function ..($rep = 1) {
     Set-Location $furtherParent
 }
 Set-Alias -Name cd.. -Value .. -Scope Global -Option AllScope 
+function cd..2 { .. 2 }
+function cd-2 { cd- 2 }
+function cd+2 { cd+ 2 }
 
 # INFO: Rescue explorer function.
 function Restart-Explorer {

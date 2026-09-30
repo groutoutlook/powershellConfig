@@ -283,6 +283,50 @@ function isLink($currentPath = (Get-Location)) {
 }
 
 function Set-LocationSymLink($currentPath = (Get-Location)) {
+    if ($currentPath -is [string] -and $currentPath -in @('r', 'root')) {
+        $currentPath = (Get-Location).ProviderPath
+        $pathToResolve = [System.IO.Path]::GetFullPath($currentPath)
+        $seenPaths = @{}
+
+        for ($linkCount = 0; $linkCount -lt 40; $linkCount++) {
+            if ($seenPaths.ContainsKey($pathToResolve)) {
+                throw "Symbolic link loop while resolving '$currentPath'."
+            }
+            $seenPaths[$pathToResolve] = $true
+
+            $root = [System.IO.Path]::GetPathRoot($pathToResolve)
+            $components = @($pathToResolve.Substring($root.Length) -split '[\\/]+' | Where-Object { $_ })
+            $resolvedPrefix = $root
+            $foundLink = $false
+
+            for ($index = 0; $index -lt $components.Count; $index++) {
+                $candidate = Join-Path $resolvedPrefix $components[$index]
+                $item = Get-Item -LiteralPath $candidate -Force -ErrorAction Stop
+                if ($item.LinkType) {
+                    $targetPath = [string]$item.Target
+                    if (-not [System.IO.Path]::IsPathRooted($targetPath)) {
+                        $targetPath = Join-Path $resolvedPrefix $targetPath
+                    }
+                    $remaining = @($components | Select-Object -Skip ($index + 1))
+                    if ($remaining.Count -gt 0) {
+                        $targetPath = Join-Path $targetPath ($remaining -join [System.IO.Path]::DirectorySeparatorChar)
+                    }
+                    $pathToResolve = [System.IO.Path]::GetFullPath($targetPath)
+                    $foundLink = $true
+                    break
+                }
+                $resolvedPrefix = $candidate
+            }
+
+            if (-not $foundLink) {
+                Set-Location -LiteralPath $pathToResolve
+                return
+            }
+        }
+
+        throw "Too many symbolic links while resolving '$currentPath'."
+    }
+
     $currentPath = Resolve-Path $currentPath
     if (($targetDir = isLink($currentPath)) -ne $null) {
         $pathProperty = Get-ItemProperty $targetDir
@@ -293,6 +337,10 @@ function Set-LocationSymLink($currentPath = (Get-Location)) {
             Set-Location (Split-Path $targetDir -Parent)
         }
     }
+}
+
+function Set-LocationSymLinkRoot {
+    Set-LocationSymLink root
 }
 
 function Remove-FullForce($path ) {
@@ -565,6 +613,7 @@ function Get-TypeInfo {
 Set-Alias -Name shcb -Value Invoke-ShimClipboardPath
 Set-Alias -Name rvcb -Value Resolve-ClipboardPath
 Set-Alias -Name cdsl -Value Set-LocationSymLink	
+Set-Alias -Name cdslr -Value Set-LocationSymLinkRoot
 Set-Alias -Name rsjb -Value Restart-Job
 Set-Alias -Name spa -Value Split-Path -Scope Global -Option AllScope
 Set-Alias -Name jpa -Value Join-Path -Scope Global -Option AllScope
