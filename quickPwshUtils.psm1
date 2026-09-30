@@ -621,7 +621,8 @@ Set-Alias -Name jpa -Value Join-Path -Scope Global -Option AllScope
 Set-Alias -Name mcm -Value Measure-Command
 Set-Alias -Name rmrf -Value Remove-FullForce 
 Set-Alias -Name cprf -Value Copy-FullForce
-Set-Alias -Name cpcb -Value Copy-FileClipboard
+Set-Alias -Name cpcb -Value Copy-FullForce
+Set-Alias -Name cpdrop -Value Copy-FileClipboard
 Set-Alias -Name gti -Value Get-TypeInfo
 Set-Alias -Name gcbf -Value Get-FileClipboardPath
 # Export-ModuleMember -Function * -Alias *
