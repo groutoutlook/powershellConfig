@@ -123,14 +123,16 @@ function Resolve-InputUri {
 
 function Get-ParsedId {
     param(
-        $idLength = 4,
+        [Alias('PathIndex')]
+        [Nullable[int]]$childIndex = $null,
+        [int]$idLength = 4,
         [string]$url = (Get-Clipboard),
         [switch]$AllMatches,
         [switch]$preferString,
         [switch]$exactLength
     )
 
-    return $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength)
+    return $parsing_id.Invoke($idLength, $url, $AllMatches, $preferString, $exactLength, $childIndex)
 }
 
 $parsing_id = {
@@ -139,7 +141,8 @@ $parsing_id = {
         $url,
         [switch]$AllMatches,
         [switch]$preferString,
-        [switch]$exactLength
+        [switch]$exactLength,
+        [Nullable[int]]$childIndex = $null
     )
 
     # INFO: Extract domain from URL
@@ -241,9 +244,19 @@ $parsing_id = {
             }
         }
         default {
-            # Generic fallback matching pattern (hexadecimal strings of length)
-            $id = $resolvedUrl | Select-String -All:$AllMatches $hexPattern | ForEach-Object { $_.Matches.Value }
-            Write-Verbose "id (generic fallback): $id"
+            # Unknown domains can search a selected path child, or the full
+            # normalized domain when no child was requested.
+            if ($null -ne $childIndex -and $childIndex -ge 1) {
+                $pathSegments = $uri.AbsolutePath.Trim('/').Split('/', [System.StringSplitOptions]::RemoveEmptyEntries)
+                if ($childIndex -le $pathSegments.Count) {
+                    $id = [uri]::UnescapeDataString($pathSegments[$childIndex - 1])
+                }
+            }
+
+            if ([string]::IsNullOrWhiteSpace($id)) {
+                $id = $domain
+            }
+            Write-Verbose "id (unknown domain fallback): $id"
         }
     }
     return $id
@@ -252,7 +265,9 @@ $parsing_id = {
 # NOTE: wrap input in single quote
 function Select-ID {
     param (
-        $idLength = 4,
+        [Alias('PathIndex')]
+        [Nullable[int]]$childIndex = $null,
+        [int]$idLength = 4,
         [Parameter(
             # Mandatory = $true,
             ValueFromPipeline = $true
@@ -264,7 +279,7 @@ function Select-ID {
         [switch]$OutString
     )
     
-    $id = Get-ParsedId -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
+    $id = Get-ParsedId -childIndex $childIndex -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
 
     if ($OutString) {
         if ($null -eq $id) {
@@ -292,13 +307,17 @@ function Select-ID {
     else {
         rgj $id
     }
+
+    Write-Warning "Search completed for '$($id -join ' | ')'. Adjust the query manually if needed."
 }
 
 Set-Alias -Name id -Value Select-ID
 
 # NOTE: wrap input in single quote
 function Invoke-SelectedID(
-    $idLength = 4,
+    [Alias('PathIndex')]
+    [Nullable[int]]$childIndex = $null,
+    [int]$idLength = 4,
     [Parameter(
         # Mandatory = $true,
         ValueFromPipeline = $true
@@ -309,7 +328,7 @@ function Invoke-SelectedID(
     [switch]$exactLength
 ) {
     
-    $id = Get-ParsedId -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
+    $id = Get-ParsedId -childIndex $childIndex -idLength $idLength -url $url -AllMatches:$AllMatches -preferString:$preferString -exactLength:$exactLength
 
     if ($null -eq $id) {
         Write-Error "nothing in here."
@@ -323,6 +342,8 @@ function Invoke-SelectedID(
     else {
         igj $id
     }
+
+    Write-Warning "Search completed for '$($id -join ' | ')'. Adjust the query manually if needed."
 }
 Set-Alias -Name iid -Value Invoke-SelectedID
 

@@ -336,6 +336,169 @@ $IterateCommandReverseParameters = @{
     }
 }
 
+$MoveSelectionToNextPhraseParameters = @{
+    Key              = 'Alt+Shift+RightArrow'
+    BriefDescription = 'move selection to the next phrase'
+    LongDescription  = 'Swap the selected text with the next PowerShell command argument.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+        if ($selectionStart -lt 0 -or $selectionLength -le 0) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+            return
+        }
+
+        $line = $null
+        $cursor = $null
+        $ast = $null
+        $tokens = $null
+        $errors = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState(
+            [ref]$ast, [ref]$tokens, [ref]$errors, [ref]$cursor
+        )
+
+        $phrases = @(
+            foreach ($commandAst in $ast.FindAll({
+                    $args[0] -is [System.Management.Automation.Language.CommandAst]
+                }, $true)) {
+                @($commandAst.CommandElements | Select-Object -Skip 1) |
+                    Where-Object { $_ -is [System.Management.Automation.Language.ExpressionAst] }
+            }
+        ) | Sort-Object { $_.Extent.StartOffset }
+        if ($phrases.Count -lt 2) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+            return
+        }
+
+        $line = $ast.Extent.Text
+        $selectedIndex = -1
+        for ($i = 0; $i -lt $phrases.Count; $i++) {
+            if ($selectionStart -ge $phrases[$i].Extent.StartOffset -and
+                $selectionStart + $selectionLength -le $phrases[$i].Extent.EndOffset) {
+                $selectedIndex = $i
+                break
+            }
+        }
+        if ($selectedIndex -lt 0) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+            return
+        }
+
+        $phraseTexts = @($phrases | ForEach-Object { $_.Extent.Text })
+        $targetIndex = if ($selectedIndex -lt $phrases.Count - 1) { $selectedIndex + 1 } else { 0 }
+        if ($selectedIndex -eq $phrases.Count - 1) {
+            $newValues = @($phraseTexts[$selectedIndex]) + @($phraseTexts[0..($phrases.Count - 2)])
+        }
+        else {
+            $newValues = @($phraseTexts)
+            $newValues[$selectedIndex] = $phraseTexts[$targetIndex]
+            $newValues[$targetIndex] = $phraseTexts[$selectedIndex]
+        }
+
+        $builder = [System.Text.StringBuilder]::new()
+        $offset = 0
+        $movedSelectionStart = $null
+        for ($i = 0; $i -lt $phrases.Count; $i++) {
+            $start = $phrases[$i].Extent.StartOffset
+            $end = $phrases[$i].Extent.EndOffset
+            [void]$builder.Append($line.Substring($offset, $start - $offset))
+            if ($i -eq $targetIndex) { $movedSelectionStart = $builder.Length }
+            [void]$builder.Append($newValues[$i])
+            $offset = $end
+        }
+        [void]$builder.Append($line.Substring($offset))
+        $newLine = $builder.ToString()
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $newLine)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($movedSelectionStart)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SelectForwardChar($null, $phraseTexts[$selectedIndex].Length)
+    }
+}
+
+$MoveSelectionToPreviousPhraseParameters = @{
+    Key              = 'Alt+Shift+LeftArrow'
+    BriefDescription = 'move selection to the previous phrase'
+    LongDescription  = 'Swap the selected text with the previous PowerShell command argument.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+        if ($selectionStart -lt 0 -or $selectionLength -le 0) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+            return
+        }
+
+        $cursor = $null
+        $ast = $null
+        $tokens = $null
+        $errors = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState(
+            [ref]$ast, [ref]$tokens, [ref]$errors, [ref]$cursor
+        )
+
+        $phrases = @(
+            foreach ($commandAst in $ast.FindAll({
+                    $args[0] -is [System.Management.Automation.Language.CommandAst]
+                }, $true)) {
+                @($commandAst.CommandElements | Select-Object -Skip 1) |
+                    Where-Object { $_ -is [System.Management.Automation.Language.ExpressionAst] }
+            }
+        ) | Sort-Object { $_.Extent.StartOffset }
+        if ($phrases.Count -lt 2) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+            return
+        }
+
+        $line = $ast.Extent.Text
+        $selectedIndex = -1
+        for ($i = 0; $i -lt $phrases.Count; $i++) {
+            if ($selectionStart -ge $phrases[$i].Extent.StartOffset -and
+                $selectionStart + $selectionLength -le $phrases[$i].Extent.EndOffset) {
+                $selectedIndex = $i
+                break
+            }
+        }
+        if ($selectedIndex -lt 0) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+            return
+        }
+
+        $phraseTexts = @($phrases | ForEach-Object { $_.Extent.Text })
+        $targetIndex = if ($selectedIndex -gt 0) { $selectedIndex - 1 } else { $phrases.Count - 1 }
+        if ($selectedIndex -eq 0) {
+            $newValues = @($phraseTexts[1..($phrases.Count - 1)]) + @($phraseTexts[$selectedIndex])
+        }
+        else {
+            $newValues = @($phraseTexts)
+            $newValues[$selectedIndex] = $phraseTexts[$targetIndex]
+            $newValues[$targetIndex] = $phraseTexts[$selectedIndex]
+        }
+
+        $builder = [System.Text.StringBuilder]::new()
+        $offset = 0
+        $movedSelectionStart = $null
+        for ($i = 0; $i -lt $phrases.Count; $i++) {
+            $start = $phrases[$i].Extent.StartOffset
+            $end = $phrases[$i].Extent.EndOffset
+            [void]$builder.Append($line.Substring($offset, $start - $offset))
+            if ($i -eq $targetIndex) { $movedSelectionStart = $builder.Length }
+            [void]$builder.Append($newValues[$i])
+            $offset = $end
+        }
+        [void]$builder.Append($line.Substring($offset))
+        $newLine = $builder.ToString()
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $newLine)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($movedSelectionStart)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SelectForwardChar($null, $phraseTexts[$selectedIndex].Length)
+    }
+}
+
 # Setup for (^O)
 $omniSearchParameters = @{
     Key              = 'Ctrl+o'
@@ -1337,6 +1500,8 @@ $HandlerParameters = @(
     , $rgToRggParameters
     , $IterateCommandParameters
     , $IterateCommandReverseParameters
+    , $MoveSelectionToNextPhraseParameters
+    , $MoveSelectionToPreviousPhraseParameters
     , $OptionsSwitchParameters
     , $openEditorParameters
     , $pipeEditorParameters
@@ -1578,6 +1743,75 @@ function Invoke-TvShellHistory {
     }
 }
 
+function Invoke-DirectoryMenuComplete {
+    $line = $null
+    $cursor = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+
+    $completion = [System.Management.Automation.CommandCompletion]::CompleteInput($line, $cursor, $null)
+    $start = $completion.ReplacementIndex
+    $length = $completion.ReplacementLength
+    if ($start -gt $cursor -or $start + $length -gt $line.Length) { return }
+
+    $pathPrefix = 'Set-Location -Path '
+    $menuLine = $pathPrefix + $line.Substring($start, $cursor - $start)
+    $directoryCompletion = [System.Management.Automation.CommandCompletion]::CompleteInput($menuLine, $menuLine.Length, $null)
+    if ($directoryCompletion.CompletionMatches.Count -eq 0 -or
+        @($directoryCompletion.CompletionMatches | Where-Object ResultType -ne ProviderContainer).Count -ne 0) {
+        return
+    }
+
+    $selectedPath = $null
+    try {
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $menuLine)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($menuLine.Length)
+        [Microsoft.PowerShell.PSConsoleReadLine]::MenuComplete()
+
+        $completedLine = $null
+        $completedCursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$completedLine, [ref]$completedCursor)
+        if ($completedLine.StartsWith($pathPrefix) -and $completedLine -ne $menuLine) {
+            $selectedPath = $completedLine.Substring($pathPrefix.Length)
+        }
+    }
+    finally {
+        $currentLine = $null
+        $currentCursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$currentLine, [ref]$currentCursor)
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $currentLine.Length, $line)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor)
+    }
+
+    if ($null -ne $selectedPath) {
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace($start, $length, $selectedPath)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($start + $selectedPath.Length)
+    }
+}
+
+function Add-DirectoryCompletionKeyMapping {
+    $readLineType = [Microsoft.PowerShell.PSConsoleReadLine]
+    $flags = [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Static -bor [System.Reflection.BindingFlags]::Instance
+    $singleton = $readLineType.GetField('_singleton', $flags).GetValue($null)
+    $dispatch = $readLineType.GetField('_dispatchTable', $flags).GetValue($singleton)
+    $fromKeyInfo = $readLineType.Assembly.GetType('Microsoft.PowerShell.PSKeyInfo').GetMethod('FromConsoleKeyInfo')
+
+    # PSReadLine's chord parser gives Ctrl+Alt+Spacebar a space character, which collides with plain Space.
+    $spaceKey = $fromKeyInfo.Invoke($null, @([ConsoleKeyInfo]::new([char]32, [ConsoleKey]::Spacebar, $false, $true, $true)))
+    $chordKey = $fromKeyInfo.Invoke($null, @([ConsoleKeyInfo]::new([char]0, [ConsoleKey]::Spacebar, $false, $true, $true)))
+    if ($null -eq $script:directoryCompletionKeyHandler) {
+        $script:directoryCompletionKeyHandler = $dispatch[$spaceKey]
+    }
+
+    foreach ($name in '_dispatchTable', '_viInsKeyMap', '_viCmdKeyMap') {
+        $field = $readLineType.GetField($name, $flags)
+        if ($null -eq $field) { continue }
+        $keyMap = $field.GetValue($(if ($field.IsStatic) { $null } else { $singleton }))
+        if ($null -eq $keyMap) { continue }
+        $keyMap[$chordKey] = $script:directoryCompletionKeyHandler
+        $keyMap[$spaceKey] = $script:directoryCompletionKeyHandler
+    }
+}
+
 function setAllHandler() {
     # INFO: custom default keyhandler.
     foreach ($handler in $HandlerParameters) {
@@ -1593,6 +1827,22 @@ function setAllHandler() {
     #Set-PSReadLineKeyHandler -Key 'Alt+c' -ScriptBlock { Invoke-PoshFzfChangeDirectory }
     #Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-TvShellHistory }
     Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock { Invoke-TvSmartAutocomplete }
+    # PSReadLine normalizes Ctrl+Alt+Spacebar to Spacebar, so preserve plain-space behavior here.
+    Set-PSReadLineKeyHandler -Key 'Ctrl+Alt+Spacebar' -BriefDescription 'CompleteDirectory' -Description 'Complete directories using the PSReadLine menu' -ScriptBlock {
+        param($key, $arg)
+        if (($key.Modifiers -band [ConsoleModifiers]::Control) -and
+            ($key.Modifiers -band [ConsoleModifiers]::Alt)) {
+            Invoke-DirectoryMenuComplete
+        }
+        elseif ((Get-PSReadLineOption).EditMode -eq 'Vi' -and
+                -not [Microsoft.PowerShell.PSConsoleReadLine]::InViInsertMode()) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::ViForwardChar($key, $arg)
+        }
+        else {
+            [Microsoft.PowerShell.PSConsoleReadLine]::SelfInsert($key, $arg)
+        }
+    }
+    Add-DirectoryCompletionKeyMapping
     if ($currentMode -eq "Vi") {
         foreach ($handler in $ViHandlerParameters) {
             Set-PSReadLineKeyHandler @handler
@@ -1609,9 +1859,11 @@ function OptionsSwitch() {
         foreach ($param in $ViHandlerRemoveParameters) {
             Remove-PSReadLineKeyHandler @param
         }
+        Add-DirectoryCompletionKeyMapping
     }
     else {
         Set-PSReadLineOption @PSReadLineOptions_Windows
+        Add-DirectoryCompletionKeyMapping
     }
 }
 

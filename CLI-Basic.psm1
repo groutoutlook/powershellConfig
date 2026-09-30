@@ -442,6 +442,8 @@ function rlo {
     just --justfile ~/hw/obs/justfile -d ~/hw/obs lint
 }
 
+Set-Alias -Name qrlo -Value rlo
+
 Set-Alias -Name r -Value just -Scope Global -Option AllScope
 
 # INFO: more alias.
