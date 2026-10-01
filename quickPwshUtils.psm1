@@ -610,6 +610,188 @@ function Get-TypeInfo {
     Get-Member -Input $args
 }
 
+# Show the values used by a function or script when an argument is omitted.
+function Get-ParameterDefault {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Alias('CommandName')]
+        [string]$Command,
+
+        [Parameter(Position = 1)]
+        [Alias('Name')]
+        [string[]]$ParameterName
+    )
+
+    process {
+        $commandInfo = Get-Command -Name $Command -ErrorAction Stop
+
+        # Follow aliases so the AST belongs to the command the user actually wants.
+        if ($commandInfo.CommandType -eq 'Alias') {
+            $commandInfo = Get-Command -Name $commandInfo.ResolvedCommandName -ErrorAction Stop
+        }
+
+        $paramBlock = $null
+        $parameterAsts = $null
+        $source = $commandInfo.Source
+        if ($commandInfo.CommandType -eq 'Function') {
+            $functionAst = $commandInfo.ScriptBlock.Ast
+            if ($functionAst -is [System.Management.Automation.Language.FunctionDefinitionAst]) {
+                $parameterAsts = $functionAst.Parameters
+                if ($parameterAsts.Count -eq 0 -and $null -ne $functionAst.Body.ParamBlock) {
+                    $parameterAsts = $functionAst.Body.ParamBlock.Parameters
+                }
+            }
+            else {
+                $parameterAsts = $functionAst.ParamBlock.Parameters
+            }
+            $source = if ($commandInfo.ScriptBlock.File) { $commandInfo.ScriptBlock.File } else { 'function' }
+        }
+        elseif ($commandInfo.CommandType -eq 'ExternalScript') {
+            $tokens = $null
+            $parseErrors = $null
+            $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
+                $commandInfo.Source,
+                [ref]$tokens,
+                [ref]$parseErrors
+            )
+            if ($parseErrors.Count -gt 0) {
+                throw "Could not parse '$($commandInfo.Source)': $($parseErrors[0].Message)"
+            }
+            $paramBlock = $scriptAst.ParamBlock
+            if ($null -ne $paramBlock) { $parameterAsts = $paramBlock.Parameters }
+            $source = $commandInfo.Source
+        }
+        else {
+            throw "'$Command' is a $($commandInfo.CommandType); its default values are implemented by PowerShell and are not available as script expressions."
+        }
+
+        if ($null -eq $parameterAsts) {
+            Write-Output "'$Command' does not declare a param block."
+            return
+        }
+
+        foreach ($parameterAst in $parameterAsts) {
+            $name = $parameterAst.Name.VariablePath.UserPath
+            if ($ParameterName -and $name -notin $ParameterName) { continue }
+
+            $expression = if ($null -ne $parameterAst.DefaultValue) {
+                $parameterAst.DefaultValue.Extent.Text
+            }
+            else {
+                $null
+            }
+
+            $value = $null
+            $evaluationError = $null
+            if ($expression) {
+                try {
+                    # Invoke only the default expression, never the containing command.
+                    $evaluationScript = [scriptblock]::Create("`$ErrorActionPreference = 'Stop'; $expression")
+                    $evaluated = @(& $evaluationScript)
+                    if ($evaluated.Count -eq 0) {
+                        $value = $null
+                    }
+                    elseif ($evaluated.Count -eq 1) {
+                        $value = $evaluated[0]
+                    }
+                    else {
+                        $value = $evaluated
+                    }
+                }
+                catch {
+                    $evaluationError = $_.Exception.Message
+                }
+            }
+
+            $displayValue = if ($evaluationError) {
+                $shortError = (($evaluationError -replace '\s+', ' ').Trim())
+                if ($shortError.Length -gt 100) { $shortError = $shortError.Substring(0, 100) + '...' }
+                "<evaluation failed: $shortError>"
+            }
+            elseif ($null -eq $expression) {
+                '<none>'
+            }
+            elseif ($null -eq $value) {
+                '$null'
+            }
+            elseif ($value -is [System.Collections.IDictionary]) {
+                $value | ConvertTo-Json -Compress -Depth 10
+            }
+            elseif ($value -is [System.Array]) {
+                '@(' + (($value | ForEach-Object { Format-ParameterDefaultValue $_ }) -join ', ') + ')'
+            }
+            else {
+                Format-ParameterDefaultValue $value
+            }
+
+            $parameterType = if ($parameterAst.StaticType) { $parameterAst.StaticType.Name } else { 'object' }
+            $defaultType = if ($evaluationError) {
+                '<unknown>'
+            }
+            elseif ($null -eq $expression) {
+                '<not specified>'
+            }
+            elseif ($null -eq $value) {
+                '$null'
+            }
+            else {
+                $value.GetType().Name
+            }
+
+            $required = $false
+            $parameterAttribute = $parameterAst.Attributes | Where-Object { $_.TypeName.Name -eq 'Parameter' } | Select-Object -First 1
+            if ($parameterAttribute) {
+                $mandatoryArgument = $parameterAttribute.NamedArguments |
+                    Where-Object { $_.ArgumentName -eq 'Mandatory' } |
+                    Select-Object -First 1
+                if ($mandatoryArgument) {
+                    if ($mandatoryArgument.ExpressionOmitted) {
+                        $required = $true
+                    }
+                    else {
+                        try {
+                            $mandatoryScript = [scriptblock]::Create(
+                                "`$ErrorActionPreference = 'Stop'; $($mandatoryArgument.Argument.Extent.Text)"
+                            )
+                            $required = [bool](@(& $mandatoryScript)[0])
+                        }
+                        catch {
+                            $required = $false
+                        }
+                    }
+                }
+            }
+
+            $result = [PSCustomObject]@{
+                Name            = $name
+                DefaultValue    = $displayValue
+                Expression      = $expression
+                Required        = $required
+                Type            = $defaultType
+                ParameterType   = $parameterType
+                Source          = $source
+            }
+            $result.PSTypeNames.Insert(0, 'PowerShellConfig.ParameterDefault')
+            $result
+        }
+    }
+}
+
+function Format-ParameterDefaultValue {
+    param([AllowNull()][object]$Value)
+
+    if ($null -eq $Value) { return '$null' }
+    if ($Value -is [string]) { return "'$(($Value -replace "'", "''"))'" }
+    if ($Value -is [bool]) { return $Value.ToString().ToLowerInvariant() }
+    if ($Value -is [char]) { return "'$Value'" }
+
+    $Value.ToString()
+}
+
+Update-TypeData -TypeName 'PowerShellConfig.ParameterDefault' `
+    -DefaultDisplayPropertySet Name, DefaultValue, Type, Required -Force
+
 Set-Alias -Name shcb -Value Invoke-ShimClipboardPath
 Set-Alias -Name rvcb -Value Resolve-ClipboardPath
 Set-Alias -Name cdsl -Value Set-LocationSymLink	
@@ -624,5 +806,6 @@ Set-Alias -Name cprf -Value Copy-FullForce
 Set-Alias -Name cpcb -Value Copy-FullForce
 Set-Alias -Name cpdrop -Value Copy-FileClipboard
 Set-Alias -Name gti -Value Get-TypeInfo
+Set-Alias -Name gpd -Value Get-ParameterDefault
 Set-Alias -Name gcbf -Value Get-FileClipboardPath
 # Export-ModuleMember -Function * -Alias *
