@@ -22,6 +22,7 @@ $global:initialModuleList = @(
     "quickWebAction",
     "quickVimAction",
     "quickPSReadLine",
+    "quick.query.psm1",
     "quickPwshUtils.psm1",
     "CLI-Basic"
 )

@@ -51,6 +51,13 @@ $VaultSearchParameters = @{
         # WARN: First time I used ScriptBlock 
         $process_string = {
             param($line)
+            if ($line -match '^(?i)(?:ConvertTo-KeyComboText|cq)\s+(?<combo>.+)$') {
+                $converter = $Matches[0] -replace '\s+$', ''
+                if ($converter -notmatch '(?i)\s-Style\s') {
+                    $converter += ' -Style Search'
+                }
+                return "$searchFunction `"`$($converter)`""
+            }
             $matchesSearchFunction = "rgj|rgo|ig"
             if ($line -match "^($matchesSearchFunction)") {
                 # TODO: further enhanced by adding different flag at this point.
@@ -1809,6 +1816,267 @@ function Add-DirectoryCompletionKeyMapping {
         if ($null -eq $keyMap) { continue }
         $keyMap[$chordKey] = $script:directoryCompletionKeyHandler
         $keyMap[$spaceKey] = $script:directoryCompletionKeyHandler
+    }
+}
+
+# Common spellings used by PSReadLine, Kanata, terminal emulators, editors,
+# and keyboard documentation.  Keep modifier prefixes separate from key names:
+# a bare `s` is the S key, while `S-` means Shift in Kanata notation.
+$script:KeyComboDictionary = [ordered]@{
+    Modifiers = [ordered]@{
+        ctrl  = @('C', 'Ctrl', 'Control', 'Ctl', 'lctl', 'lctrl', 'LeftCtrl', 'LCtrl')
+        rctrl = @('RC', 'RCtrl', 'rctl', 'rctrl', 'RightCtrl')
+        meta  = @('M', 'Meta', 'lmet', 'lmeta', 'LeftMeta', 'Win', 'Windows', 'Super', 'GUI', 'Command', 'Cmd')
+        rmeta = @('RM', 'RMeta', 'rmet', 'rmeta', 'RightMeta')
+        alt   = @('A', 'Alt', 'Option', 'lalt', 'LeftAlt')
+        ralt  = @('RA', 'RAlt', 'ralt', 'AltGr', 'RightAlt', 'AG')
+        shift = @('S', 'Shift', 'lsft', 'lshift', 'LeftShift')
+        rshift = @('RS', 'RShift', 'rsft', 'rshift', 'RightShift')
+    }
+    Keys = [ordered]@{
+        esc   = @('Esc', 'Escape')
+        ret   = @('Enter', 'Return', 'Ret', 'Ent')
+        tab   = @('Tab')
+        bspc  = @('Backspace', 'Back', 'BS', 'Bspc')
+        del   = @('Delete', 'Del')
+        ins   = @('Insert', 'Ins')
+        spc   = @('Space', 'Spacebar', 'SPC')
+        pgup  = @('PageUp', 'PgUp', 'Prior')
+        pgdn  = @('PageDown', 'PgDn', 'Next')
+        left  = @('Left', 'LeftArrow', 'ArrowLeft', 'Lft')
+        right = @('Right', 'RightArrow', 'ArrowRight', 'Rght')
+        up    = @('Up', 'UpArrow', 'ArrowUp')
+        down  = @('Down', 'DownArrow', 'ArrowDown')
+        home  = @('Home')
+        end   = @('End')
+        pause = @('Pause', 'Break', 'Brk')
+        caps  = @('CapsLock', 'Caps')
+        nlck  = @('NumLock', 'Num')
+        scrlck = @('ScrollLock', 'Scroll')
+        grv   = @('Grv', 'Backquote', 'Oem3')
+        min   = @('Minus', 'OemMinus')
+        eql   = @('Equal', 'OemPlus')
+        lbrc  = @('BracketLeft', 'LeftBracket', 'Oem4')
+        rbrc  = @('BracketRight', 'RightBracket', 'Oem6')
+        bksl  = @('Backslash', 'Oem5')
+        scln  = @('Semicolon', 'Oem1')
+        apo   = @('Quote', 'Apostrophe', 'Oem7')
+        comm  = @('Comma', 'OemComma')
+        dot   = @('Period', 'Dot', 'OemPeriod')
+        slash = @('Slash', 'Oem2')
+        kprt  = @('PrintScreen', 'PrtSc', 'PrtScn', 'Snapshot', 'KPrt')
+    }
+}
+
+function Get-KeyComboDictionary {
+    <#
+    .SYNOPSIS
+        List the key-combo aliases understood by ConvertTo-KeyComboText.
+    #>
+    [CmdletBinding()]
+    param(
+        [ValidateSet('All', 'Modifiers', 'Keys')]
+        [string]$Category = 'All',
+        [switch]$Raw
+    )
+
+    $categories = if ($Category -eq 'All') { @('Modifiers', 'Keys') } else { @($Category) }
+    if ($Raw) {
+        $rawDictionary = [ordered]@{}
+        foreach ($name in $categories) { $rawDictionary[$name] = $script:KeyComboDictionary[$name] }
+        return ,$rawDictionary
+    }
+
+    foreach ($name in $categories) {
+        foreach ($canonical in $script:KeyComboDictionary[$name].Keys) {
+            foreach ($alias in $script:KeyComboDictionary[$name][$canonical]) {
+                [PSCustomObject]@{
+                    Category  = $name
+                    Canonical = $canonical
+                    Alias     = $alias
+                }
+            }
+        }
+    }
+}
+
+function ConvertTo-KeyComboText {
+    <#
+    .SYNOPSIS
+        Convert a ConsoleKeyInfo or chord string to searchable text.
+
+    .DESCRIPTION
+        PSReadLine gives key handlers a ConsoleKeyInfo object, while keyboard
+        remappers such as Kanata commonly provide text such as C-S-p or
+        Ctrl+Shift+p.  This cmdlet gives both forms one stable representation.
+        Chords in a sequence may be separated with commas or `>`.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [object]$InputObject
+    )
+
+    begin {
+        $modifierAliases = @{}
+        foreach ($canonical in $script:KeyComboDictionary.Modifiers.Keys) {
+            foreach ($alias in $script:KeyComboDictionary.Modifiers[$canonical]) {
+                $modifierAliases[$alias.ToLowerInvariant()] = $canonical
+            }
+        }
+        $keyAliases = @{}
+        foreach ($canonical in $script:KeyComboDictionary.Keys.Keys) {
+            foreach ($alias in $script:KeyComboDictionary.Keys[$canonical]) {
+                $keyAliases[$alias.ToLowerInvariant()] = $canonical
+            }
+        }
+
+        $formatKeyInfo = {
+            param([object]$Value)
+
+            $key = $Value.Key
+            $modifiers = [System.ConsoleModifiers]$Value.Modifiers
+            $hasShift = [bool]($modifiers -band [System.ConsoleModifiers]::Shift)
+            $parts = [System.Collections.Generic.List[string]]::new()
+            if ($modifiers -band [System.ConsoleModifiers]::Control) { $parts.Add('Ctrl') }
+            if ($modifiers -band [System.ConsoleModifiers]::Alt) { $parts.Add('Alt') }
+            if ($hasShift) { $parts.Add('Shift') }
+
+            $keyName = $key.ToString()
+            switch -Regex ($keyName) {
+                '^D([0-9])$' { $keyName = $Matches[1]; break }
+                '^NumPad([0-9])$' { $keyName = "NumPad$($Matches[1])"; break }
+                '^Oem' { break }
+                default {
+                    if ($keyName.Length -eq 1 -and $keyName -match '[A-Za-z]') {
+                        $keyName = if ($hasShift) { $keyName.ToUpperInvariant() } else { $keyName.ToLowerInvariant() }
+                    }
+                }
+            }
+            $parts.Add($keyName)
+            $parts -join '+'
+        }
+
+        $formatText = {
+            param([string]$Value)
+
+            $sequence = $Value.Trim() -replace '\s*->\s*', ',' -replace '\s*>\s*', ','
+            $chords = $sequence -split '\s*,\s*' | Where-Object { $_ -and $_.Trim() }
+            $events = foreach ($chord in $chords) {
+                # Kanata logs can prefix an event with a timestamp, e.g. "120ms C-a".
+                $chord = $chord.Trim() -replace '^\[?\d+(?:\.\d+)?\s*(?:ms|s)\]?\s+', ''
+                $chord = $chord -replace '\s*\+\s*', '+'
+                $chordParts = @($chord -split '\s+' | Where-Object { $_ })
+                if ($chordParts.Count -gt 1 -and @($chordParts | Where-Object { $_ -match '[-+]' }).Count -eq $chordParts.Count) {
+                    $chordParts
+                }
+                else {
+                    $chord
+                }
+            }
+            $normalized = foreach ($chord in $events) {
+                $tokens = @($chord -split '\+')
+                $parts = [System.Collections.Generic.List[string]]::new()
+                for ($tokenIndex = 0; $tokenIndex -lt $tokens.Count; $tokenIndex++) {
+                    $tokenValue = $tokens[$tokenIndex]
+                    $token = $tokenValue.Trim()
+                    if (-not $token) { continue }
+                    # Kanata accepts chained prefixes such as C-S-p.
+                    while ($true) {
+                        $kanataMatch = [regex]::Match($token, '^(?<modifier>[CASMW])-+(?<key>.+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                        if (-not $kanataMatch.Success) { break }
+                        $token = $kanataMatch.Groups['key'].Value
+                        switch ($kanataMatch.Groups['modifier'].Value.ToUpperInvariant()) {
+                            'C' { $parts.Add('ctrl') }
+                            'A' { $parts.Add('alt') }
+                            'M' { $parts.Add('meta') }
+                            'S' { $parts.Add('shift') }
+                            'W' { $parts.Add('meta') }
+                        }
+                    }
+                    $isModifierPosition = $tokenIndex -lt ($tokens.Count - 1)
+                    $modifierName = $modifierAliases[$token.ToLowerInvariant()]
+                    if ($isModifierPosition -and $modifierName) {
+                        $parts.Add($modifierName)
+                        continue
+                    }
+
+                    $keyName = $keyAliases[$token.ToLowerInvariant()]
+                    if ($keyName) {
+                        $parts.Add($keyName)
+                    }
+                    elseif ($token -match '^oem(\d+)$') {
+                        $parts.Add("Oem$($Matches[1])")
+                    }
+                    else {
+                        $parts.Add($token)
+                    }
+                }
+
+                $modifiers = @('ctrl', 'rctrl', 'meta', 'rmeta', 'alt', 'ralt', 'shift', 'rshift')
+                $ordered = foreach ($modifier in $modifiers) {
+                    $parts | Where-Object { $_ -eq $modifier } | Select-Object -First 1
+                }
+                $keyPart = $parts | Where-Object { $modifiers -notcontains $_ } | Select-Object -Last 1
+                if ($keyPart) { @($ordered) + $keyPart -join '+' } else { $ordered -join '+' }
+            }
+            $normalized -join ', '
+        }
+    }
+    process {
+        if ($InputObject -is [System.ConsoleKeyInfo]) {
+            & $formatKeyInfo $InputObject
+            return
+        }
+
+        # PSReadLine's internal PSKeyInfo has the same Key/Modifiers shape.
+        if ($InputObject.PSObject.Properties['Key'] -and $InputObject.PSObject.Properties['Modifiers']) {
+            & $formatKeyInfo $InputObject
+            return
+        }
+
+        & $formatText ([string]$InputObject)
+    }
+}
+
+function Find-PSReadLineKeyBinding {
+    <#
+    .SYNOPSIS
+        Search PSReadLine bindings by a normalized key-combo string.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0)]
+        [string]$Pattern,
+        [System.ConsoleKeyInfo]$Key,
+        [switch]$Exact
+    )
+
+    $query = if ($PSBoundParameters.ContainsKey('Key')) {
+        ConvertTo-KeyComboText $Key
+    }
+    elseif ($PSBoundParameters.ContainsKey('Pattern')) {
+        ConvertTo-KeyComboText $Pattern
+    }
+    else {
+        ''
+    }
+
+    $queryParts = $query -split '\s*,\s*' | ForEach-Object { $_.ToLowerInvariant() }
+    $handlers = @(Get-PSReadLineKeyHandler)
+    foreach ($handler in $handlers) {
+        $handlerKey = ConvertTo-KeyComboText ([string]$handler.Key)
+        $handlerParts = $handlerKey -split '\s*,\s*' | ForEach-Object { $_.ToLowerInvariant() }
+        $matches = if (-not $query) {
+            $true
+        }
+        elseif ($Exact) {
+            (@($handlerParts) -join ',') -eq (@($queryParts) -join ',')
+        }
+        else {
+            $handlerParts -join ',' -like "*$($queryParts -join ',')*"
+        }
+        if ($matches) { $handler }
     }
 }
 
