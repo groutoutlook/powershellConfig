@@ -431,6 +431,95 @@ if (-not [System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
     return $paths
 }
 
+function Set-FileClipboard {
+    <#
+    .SYNOPSIS
+        Put filesystem paths on the Windows Explorer file clipboard.
+
+    .DESCRIPTION
+        Explorer's file clipboard is different from the text clipboard exposed
+        by Set-Clipboard. Windows Forms requires an STA thread, so a small
+        Windows PowerShell helper is used when the current PowerShell thread is
+        not STA.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, Position = 0, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [Alias('LiteralPath', 'FullName')]
+        [string[]]$Path
+    )
+
+    begin {
+        $paths = [System.Collections.Generic.List[string]]::new()
+    }
+
+    process {
+        foreach ($item in $Path) {
+            if ([string]::IsNullOrWhiteSpace($item)) { continue }
+
+            try {
+                $resolved = Get-Item -LiteralPath $item -ErrorAction Stop
+            }
+            catch {
+                throw "Path '$item' was not found."
+            }
+
+            if ($resolved.PSProvider.Name -ne 'FileSystem') {
+                throw "Path '$item' is not on the filesystem."
+            }
+
+            $paths.Add([System.IO.Path]::GetFullPath($resolved.FullName))
+        }
+    }
+
+    end {
+        if ($paths.Count -eq 0) {
+            throw 'At least one filesystem path is required.'
+        }
+
+        $setFileDropList = {
+            param([string[]]$Values)
+
+            Add-Type -AssemblyName System.Windows.Forms
+            $fileDropList = [System.Collections.Specialized.StringCollection]::new()
+            foreach ($value in $Values) { [void]$fileDropList.Add($value) }
+            [System.Windows.Forms.Clipboard]::SetFileDropList($fileDropList)
+        }
+
+        $isSta = [Threading.Thread]::CurrentThread.GetApartmentState() -eq [Threading.ApartmentState]::STA
+        if ($isSta) {
+            & $setFileDropList ([string[]]$paths)
+            return
+        }
+
+        $powershell = Get-Command powershell.exe -ErrorAction SilentlyContinue
+        if (-not $powershell) {
+            throw 'Setting the Windows file clipboard requires Windows PowerShell (powershell.exe) in PATH.'
+        }
+
+        # Encode the path payload so spaces, quotes, and non-ASCII characters
+        # survive the handoff to Windows PowerShell unchanged.
+        $json = ConvertTo-Json -InputObject ([string[]]$paths) -Compress
+        $payload = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
+        $helper = @"
+`$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+`$json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$payload'))
+`$values = @(`$json | ConvertFrom-Json)
+`$fileDropList = [System.Collections.Specialized.StringCollection]::new()
+foreach (`$value in `$values) { [void]`$fileDropList.Add([string]`$value) }
+[System.Windows.Forms.Clipboard]::SetFileDropList(`$fileDropList)
+"@
+        $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($helper))
+        $output = @(& $powershell.Source -NoLogo -NoProfile -NonInteractive -STA -EncodedCommand $encodedCommand 2>&1)
+        if ($LASTEXITCODE -ne 0) {
+            $detail = ($output | ForEach-Object { [string]$_ }) -join ' '
+            if (-not $detail) { $detail = "exit code $LASTEXITCODE" }
+            throw "Could not set the Windows file clipboard: $detail"
+        }
+    }
+}
+
 function Copy-FileClipboard {
     <#
     .SYNOPSIS
@@ -803,7 +892,7 @@ Set-Alias -Name jpa -Value Join-Path -Scope Global -Option AllScope
 Set-Alias -Name mcm -Value Measure-Command
 Set-Alias -Name rmrf -Value Remove-FullForce 
 Set-Alias -Name cprf -Value Copy-FullForce
-Set-Alias -Name cpcb -Value Copy-FullForce
+Set-Alias -Name cpcb -Value Copy-FileClipboard
 Set-Alias -Name cpdrop -Value Copy-FileClipboard
 Set-Alias -Name gti -Value Get-TypeInfo
 Set-Alias -Name gpd -Value Get-ParameterDefault
