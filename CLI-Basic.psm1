@@ -88,20 +88,20 @@ function Build-PatternFromPureTokens {
     return [PSCustomObject]@{ Terms = $tokens; PatternBetween = $patternBetween; RequireNewline = $requireNewline; ExtraDash = $extraDash; Pattern = $pattern }
 }
 
-function rgj
-(
-) {
+function Get-JournalSearchContext {
+    param([object[]]$InputArgs)
+
     # Optional journal selector. The normal form remains `rgj term ...`;
     # `rgj --journal vc term ...` restricts the search to jrnl's `vc` map entry.
     $journalSelector = $null
     $searchArgs = @()
-    for ($index = 0; $index -lt $args.Count; $index++) {
-        $argument = [string]$args[$index]
+    for ($index = 0; $index -lt $InputArgs.Count; $index++) {
+        $argument = [string]$InputArgs[$index]
         if ($argument -in @('-j', '--journal')) {
-            if ($index + 1 -ge $args.Count) {
+            if ($index + 1 -ge $InputArgs.Count) {
                 throw "$argument requires a jrnl abbreviation."
             }
-            $journalSelector = [string]$args[++$index]
+            $journalSelector = [string]$InputArgs[++$index]
         }
         elseif ($argument -match '^@(.+)$') {
             $journalSelector = $Matches[1]
@@ -110,7 +110,7 @@ function rgj
             $journalSelector = $Matches[1]
         }
         else {
-            $searchArgs += $args[$index]
+            $searchArgs += $InputArgs[$index]
         }
     }
 
@@ -120,7 +120,7 @@ function rgj
         if (-not $jrnlCommand) {
             throw 'jrnl was not found on PATH; cannot resolve a journal abbreviation.'
         }
-        $jrnlJson = (& $jrnlCommand.Source --list --format json 2>$null) -join "`n"
+        $jrnlJson = (& $jrnlCommand --list --format json 2>$null) -join "`n"
         if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($jrnlJson)) {
             throw 'jrnl --list --format json did not return its journal map.'
         }
@@ -147,6 +147,19 @@ function rgj
         $searchTarget = zoxide query obs
     }
 
+    [PSCustomObject]@{
+        SearchArgs = $searchArgs
+        SearchTarget = $searchTarget
+        JournalGlob = if ($journalSelector) { @() } else { @('-g', '*Journal.md') }
+    }
+}
+function rgj
+(
+) {
+    $context = Get-JournalSearchContext -InputArgs $args
+    $searchArgs = $context.SearchArgs
+    $searchTarget = $context.SearchTarget
+    $journalGlob = $context.JournalGlob
     # Modular parsing: split dash options and pure tokens
     $parsed = Get-SearchArgs -InputArgs $searchArgs
     $pureTokens = @($parsed.PureTokens)
@@ -161,9 +174,13 @@ function rgj
 
     $dashArgsCombined = @($dashArgs + $extraDash)
     $pattern = $build.Pattern
-    $journalGlob = if ($journalSelector) { @() } else { @('-g', '*Journal.md') }
 
-    & rg @journalGlob -M 400 -A3 @dashArgsCombined -- $pattern $searchTarget
+
+    $rgArgs = @('-M', '400', '-A3')
+    if (@($journalGlob).Count) { $rgArgs += $journalGlob }
+    if ($dashArgsCombined.Count) { $rgArgs += $dashArgsCombined }
+    $rgArgs += @('--', $pattern, $searchTarget)
+    & rg @rgArgs
 
     if ($? -eq $false) {
         Write-Host "not in those journal.md, trying rotate mode..." -ForegroundColor Magenta
@@ -201,7 +218,11 @@ function rgj
                 $newTerms += $tail
 
                 $testPattern = Join-SearchPattern -Terms $newTerms -PatternBetween $patternBetween -RequireNewline:$requireNewline
-                & rg @journalGlob -M 400 -A3 @dashArgsCombined -- $testPattern $searchTarget
+                $retryArgs = @('-M', '400', '-A3')
+                if (@($journalGlob).Count) { $retryArgs += $journalGlob }
+                if ($dashArgsCombined.Count) { $retryArgs += $dashArgsCombined }
+                $retryArgs += @('--', $testPattern, $searchTarget)
+                & rg @retryArgs
                 if ($?) {
                     $found = $true
                     $order = ($newTerms | Where-Object { $_ -is [string] -and $_ -notmatch '^-' }) -join ' '
@@ -250,14 +271,24 @@ function igo() {
 }
 
 function igj() {
-    $obsPath = zoxide query obs
-    $parsed = Get-SearchArgs -InputArgs $args
+    $context = Get-JournalSearchContext -InputArgs $args
+    $parsed = Get-SearchArgs -InputArgs $context.SearchArgs
     $pureTokens = @($parsed.PureTokens)
     $dashArgs = @($parsed.DashArgs)
     $build = Build-PatternFromPureTokens -PureTokens $pureTokens
     $pattern = $build.Pattern
     $dashArgs += $build.ExtraDash
-    & ig -g '*Journal.md' --context-viewer=horizontal @dashArgs -- $pattern $obsPath
+    $journalGlob = $context.JournalGlob
+    $igArgs = @('--context-viewer=horizontal')
+    # ig does not read ripgrep's case settings. Lowercase queries should also
+    # match STEP/Model, while uppercase queries retain smart-case behavior.
+    if (-not @($dashArgs | Where-Object { $_ -cin @('-i', '--ignore-case', '-S', '--smart-case') }).Count) {
+        $igArgs += '-S'
+    }
+    if (@($journalGlob).Count) { $igArgs += $journalGlob }
+    if ($dashArgs.Count) { $igArgs += $dashArgs }
+    $igArgs += @('--', $pattern, $context.SearchTarget)
+    & ig @igArgs
 }
 
 # INFO: yazi quick call.
@@ -675,6 +706,12 @@ function Send-MpvCommand {
         [string[]]$Arguments,
         [switch]$ReturnResponse
     )
+    if (-not (Get-Command Send-MpvIpcCommand -ErrorAction SilentlyContinue) -and $env:p7settingDir) {
+        $utilsModule = Join-Path $env:p7settingDir 'quickPwshUtils.psm1'
+        if (Test-Path -LiteralPath $utilsModule) {
+            Import-Module -Name $utilsModule -Scope Global -ErrorAction SilentlyContinue
+        }
+    }
     if (Get-Command Send-MpvIpcCommand -ErrorAction SilentlyContinue) {
         return Send-MpvIpcCommand -Command $Command -Arguments $Arguments -ReturnResponse:$ReturnResponse
     }

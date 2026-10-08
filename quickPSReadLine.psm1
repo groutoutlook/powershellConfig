@@ -2,6 +2,68 @@ using namespace System.Console
 using namespace System.Management.Automation
 using namespace System.Management.Automation.Language
 # $RLModule = [Microsoft.PowerShell.PSConsoleReadLine]
+
+function Invoke-PSReadLineWrapToken {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Open,
+        [Parameter(Mandatory)]
+        [string]$Close
+    )
+
+    $selectionStart = $null
+    $selectionLength = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+
+    $line = $null
+    $cursor = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+
+    if ($selectionStart -ne -1) {
+        $selectedText = $line.Substring($selectionStart, $selectionLength)
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "$Open$selectedText$Close")
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + $Open.Length + $Close.Length)
+        return
+    }
+
+    $ast = $null
+    $tokens = $null
+    $errors = $null
+    $parsedCursor = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$ast, [ref]$tokens, [ref]$errors, [ref]$parsedCursor)
+    if ($null -ne $ast.Extent) {
+        $line = $ast.Extent.Text
+    }
+
+    $nearestToken = $tokens | Where-Object {
+        $_.Extent.StartOffset -lt $_.Extent.EndOffset -and
+        $_.Extent.StartOffset -le $parsedCursor -and
+        $_.Extent.EndOffset -ge $parsedCursor
+    } | Select-Object -First 1
+
+    if (-not $nearestToken) {
+        $nearestToken = $tokens | Where-Object {
+            $_.Extent.StartOffset -lt $_.Extent.EndOffset
+        } | Sort-Object {
+            [Math]::Abs($_.Extent.StartOffset - $parsedCursor)
+        } | Select-Object -First 1
+    }
+
+    if ($nearestToken -and
+        $nearestToken.Extent.StartOffset -ge 0 -and
+        $nearestToken.Extent.EndOffset -le $line.Length) {
+        $start = $nearestToken.Extent.StartOffset
+        $length = $nearestToken.Extent.EndOffset - $start
+        $text = $nearestToken.Extent.Text
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace($start, $length, "$Open$text$Close")
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($start + $length + $Open.Length + $Close.Length)
+        return
+    }
+
+    [Microsoft.PowerShell.PSConsoleReadLine]::Insert("$Open$Close")
+    [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + $Open.Length)
+}
+
 $ggSearchParameters = @{
     Key              = 'Ctrl+shift+alt+w' # limbo
     BriefDescription = 'Web Search Mode'
@@ -1037,79 +1099,28 @@ $ParenthesesParameter = @{
     LongDescription  = 'Wraps selected text in parentheses; if no selection, wraps the token nearest to the cursor. Cursor is placed after the closing parenthesis.'
     ScriptBlock      = {
         param($key, $arg)
-
-        $selectionStart = $null
-        $selectionLength = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
-
-        $line = $null
-        $cursor = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
-        if ($selectionStart -ne -1) {
-            $selectedText = $line.SubString($selectionStart, $selectionLength)
-            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "($selectedText)")
-            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + 2)
-        }
-        else {
-            $ast = $null
-            $tokens = $null
-            $errors = $null
-            $cursor = $null
-            [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$ast, [ref]$tokens, [ref]$errors, [ref]$cursor)
-            $line = if ($ast.Extent) { $ast.Extent.Text } else { '' }
-            $nearestToken = $tokens | Where-Object {
-                $_.Extent.StartOffset -le $cursor -and $_.Extent.EndOffset -ge $cursor
-            } | Select-Object -First 1
-
-            if (-not $nearestToken) {
-                # If no token is under the cursor, find the closest token
-                $nearestToken = $tokens | Sort-Object {
-                    [Math]::Abs($_.Extent.StartOffset - $cursor)
-                } | Select-Object -First 1
-            }
-
-            if ($nearestToken -and 
-                $nearestToken.Extent.StartOffset -ge 0 -and 
-                $nearestToken.Extent.StartOffset -le $line.Length -and 
-                $nearestToken.Extent.EndOffset -le $line.Length) {
-                $start = $nearestToken.Extent.StartOffset
-                $length = $nearestToken.Extent.EndOffset - $start
-                $text = $nearestToken.Extent.Text
-                [Microsoft.PowerShell.PSConsoleReadLine]::Replace($start, $length, "($text)")
-                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($start + $length + 1)
-            }
-            else {
-                # Fallback: insert () at cursor
-                [Microsoft.PowerShell.PSConsoleReadLine]::Insert('()')
-                [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + 1)
-            }
-        }
+        Invoke-PSReadLineWrapToken -Open '(' -Close ')'
     }
 }
 
 $ParenthesesAllParameter = @{
     Key              = 'Ctrl+9'
-    BriefDescription = 'parentheses all or the selection'
-    LongDescription  = 'Wraps the selected text or the entire line in parentheses.'
+    BriefDescription = 'parentheses the selection or nearest token'
+    LongDescription  = 'Wraps selected text in parentheses; if no selection, wraps the token nearest to the cursor. Cursor is placed after the closing parenthesis.'
     ScriptBlock      = {
         param($key, $arg)
+        Invoke-PSReadLineWrapToken -Open '(' -Close ')'
+    }
+}
 
-        $selectionStart = $null
-        $selectionLength = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
-
-        $line = $null
-        $cursor = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
-        if ($selectionStart -ne -1) {
-            $selectedText = $line.SubString($selectionStart, $selectionLength)
-            [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, "($selectedText)")
-            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $selectionLength + 2)
-        }
-        else {
-            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, "($line)")
-            [Microsoft.PowerShell.PSConsoleReadLine]::EndOfLine()
-        }
+$SquareBracketsParameter = @{
+    # PSReadLine identifies Ctrl+[ as Ctrl+Oem4 on Windows consoles.
+    Key              = 'Ctrl+Oem4'
+    BriefDescription = 'brackets the selection or nearest token'
+    LongDescription  = 'Wraps selected text in square brackets; if no selection, wraps the token nearest to the cursor. Cursor is placed after the closing bracket.'
+    ScriptBlock      = {
+        param($key, $arg)
+        Invoke-PSReadLineWrapToken -Open '[' -Close ']'
     }
 }
 
@@ -1473,17 +1484,6 @@ $twoKeyEscape_j_Parameters = @{
     }
 }
 
-$ctrlBracket_Parameters = @{
-    # HACK: on the key code, using [System.Console]::ReadKey() -> `[` as Oem4.
-    Key              = 'ctrl+Oem4'
-    BriefDescription = 'ctrl+['
-    LongDescription  = 'This is only included when in ViMode,in command(normal) mode'
-    ViMode           = "Insert"
-    ScriptBlock      = {
-        param($key, $arg)   
-        [Microsoft.PowerShell.PSConsoleReadLine]::ViCommandMode()
-    }
-}
 # INFO: Common Windows/Vi Mode Key handlers
 $HandlerParameters = @(
     $ggSearchParameters
@@ -1497,6 +1497,7 @@ $HandlerParameters = @(
     , $ExtraKillWord1Parameters
     , $ParenthesesParameter
     , $ParenthesesAllParameter
+    , $SquareBracketsParameter
     , $DoubleQuotesParameter
     , $DoubleQuotesNestedBracketParameter
     , $WrapPipeParameter
@@ -1522,7 +1523,6 @@ $ViHandlerParameters = @(
     $OptionsSwitch_Command_Parameters
     , $twoKeyEscape_k_Parameters 
     , $twoKeyEscape_j_Parameters 
-    , $ctrlBracket_Parameters
 )
 # INFO: Default of Windows PSReadLineOptions
 $PSReadLineOptions_Windows = @{
@@ -1749,6 +1749,7 @@ function Invoke-TvShellHistory {
         Write-Debug "TV shell history failed: $_"
     }
 }
+
 
 function Invoke-DirectoryMenuComplete {
     $line = $null
@@ -2087,10 +2088,15 @@ function setAllHandler() {
     }
     # INFO: Add Vi Handler.
     $currentMode = (Get-PSReadLineOption).EditMode 
-    Invoke-Expression (&posh-fzf init | Out-String)
 
     # Customize the key bindings to your liking
-    Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-PoshFzfSelectHistory }
+    Set-PSReadLineKeyHandler -Key 'Ctrl+r' -BriefDescription 'FuzzyHistory' -ScriptBlock {
+        if (-not $script:PoshFzfInitialized) {
+            Invoke-Expression (&posh-fzf init | Out-String)
+            $script:PoshFzfInitialized = $true
+        }
+        Invoke-PoshFzfSelectHistory
+    }
     #Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock { Invoke-PoshFzfSelectItems }
     #Set-PSReadLineKeyHandler -Key 'Alt+c' -ScriptBlock { Invoke-PoshFzfChangeDirectory }
     #Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-TvShellHistory }
@@ -2135,6 +2141,11 @@ function OptionsSwitch() {
     }
 }
 
-# HACK: preset of the initial settings.
-Set-PSReadLineOption @PSReadLineOptions_Windows
-setAllHandler
+# Configure editing bindings immediately; optional integrations initialize on use.
+if (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
+    Set-PSReadLineOption @PSReadLineOptions_Windows
+    setAllHandler
+}
+
+# The shared key-combo commands are provided by quick.query through autoloading.
+Export-ModuleMember -Function Invoke-PSReadLineWrapToken, Edit-PipedContent, Get-AvailableSpaceBelowPrompt, Invoke-TvSmartAutocomplete, Invoke-TvShellHistory, Invoke-DirectoryMenuComplete, Add-DirectoryCompletionKeyMapping, setAllHandler, OptionsSwitch

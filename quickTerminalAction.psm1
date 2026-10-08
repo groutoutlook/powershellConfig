@@ -34,7 +34,7 @@ function tapscr($emulator = $global:adbDevices, $index = 0) {
         try {
 
             Write-Host "Import Anddev" -ForegroundColor Cyan
-            anddev 
+            andDev 
             ADB_getSerialList 
 		
             $emulatorName = $emulator[$index]

@@ -12,7 +12,7 @@ $script:KeyComboDictionary = [ordered]@{
         shift  = @('S', 'Shift', 'lsft', 'lshift', 'LeftShift')
         rshift = @('RS', 'RShift', 'rsft', 'rshift', 'RightShift')
     }
-    Keys = [ordered]@{
+    Keys      = [ordered]@{
         esc    = @('Esc', 'Escape')
         ret    = @('Enter', 'Return', 'Ret', 'Ent')
         tab    = @('Tab')
@@ -89,7 +89,7 @@ function Get-KeyComboDictionary {
     if ($Raw) {
         $raw = [ordered]@{}
         foreach ($name in $categories) { $raw[$name] = $script:KeyComboDictionary[$name] }
-        return ,$raw
+        return , $raw
     }
     foreach ($name in $categories) {
         foreach ($canonical in $script:KeyComboDictionary[$name].Keys) {
@@ -171,20 +171,20 @@ function ConvertFrom-KeyComboCanonical {
     )
 
     $modifierNames = @{
-        Kanata    = @{ ctrl = 'C'; rctrl = 'RC'; meta = 'M'; rmeta = 'RM'; alt = 'A'; ralt = 'RA'; shift = 'S'; rshift = 'RS' }
+        Kanata     = @{ ctrl = 'C'; rctrl = 'RC'; meta = 'M'; rmeta = 'RM'; alt = 'A'; ralt = 'RA'; shift = 'S'; rshift = 'RS' }
         PSReadLine = @{ ctrl = 'Ctrl'; rctrl = 'Ctrl'; meta = 'Win'; rmeta = 'Win'; alt = 'Alt'; ralt = 'Alt'; shift = 'Shift'; rshift = 'Shift' }
-        VSCode    = @{ ctrl = 'ctrl'; rctrl = 'ctrl'; meta = 'meta'; rmeta = 'meta'; alt = 'alt'; ralt = 'alt'; shift = 'shift'; rshift = 'shift' }
-        Vim       = @{ ctrl = 'C'; rctrl = 'C'; meta = 'M'; rmeta = 'M'; alt = 'A'; ralt = 'A'; shift = 'S'; rshift = 'S' }
-        Emacs     = @{ ctrl = 'C'; rctrl = 'C'; meta = 'M'; rmeta = 'M'; alt = 'A'; ralt = 'A'; shift = 'S'; rshift = 'S' }
-        Helix     = @{ ctrl = 'C'; rctrl = 'C'; meta = 'M'; rmeta = 'M'; alt = 'A'; ralt = 'A'; shift = 'S'; rshift = 'S' }
+        VSCode     = @{ ctrl = 'ctrl'; rctrl = 'ctrl'; meta = 'meta'; rmeta = 'meta'; alt = 'alt'; ralt = 'alt'; shift = 'shift'; rshift = 'shift' }
+        Vim        = @{ ctrl = 'C'; rctrl = 'C'; meta = 'M'; rmeta = 'M'; alt = 'A'; ralt = 'A'; shift = 'S'; rshift = 'S' }
+        Emacs      = @{ ctrl = 'C'; rctrl = 'C'; meta = 'M'; rmeta = 'M'; alt = 'A'; ralt = 'A'; shift = 'S'; rshift = 'S' }
+        Helix      = @{ ctrl = 'C'; rctrl = 'C'; meta = 'M'; rmeta = 'M'; alt = 'A'; ralt = 'A'; shift = 'S'; rshift = 'S' }
     }
     $keyNames = @{
         PSReadLine = @{ esc = 'Escape'; ret = 'Enter'; bspc = 'Backspace'; spc = 'Spacebar'; pgup = 'PageUp'; pgdn = 'PageDown'; left = 'LeftArrow'; right = 'RightArrow'; up = 'UpArrow'; down = 'DownArrow'; kp0 = 'NumPad0'; kp1 = 'NumPad1'; kp2 = 'NumPad2'; kp3 = 'NumPad3'; kp4 = 'NumPad4'; kp5 = 'NumPad5'; kp6 = 'NumPad6'; kp7 = 'NumPad7'; kp8 = 'NumPad8'; kp9 = 'NumPad9' }
-        VSCode = @{ esc = 'escape'; ret = 'enter'; bspc = 'backspace'; spc = 'space'; pgup = 'pageup'; pgdn = 'pagedown'; left = 'left'; right = 'right'; up = 'up'; down = 'down'; kp0 = 'num0'; kp1 = 'num1'; kp2 = 'num2'; kp3 = 'num3'; kp4 = 'num4'; kp5 = 'num5'; kp6 = 'num6'; kp7 = 'num7'; kp8 = 'num8'; kp9 = 'num9'; 'kp+' = 'numadd'; 'kp-' = 'numsub'; 'kp*' = 'multiply'; 'kp/' = 'divide'; 'kp.' = 'decimal' }
-        Vim     = @{ esc = '<Esc>'; ret = '<CR>'; tab = '<Tab>'; bspc = '<BS>'; del = '<Del>'; ins = '<Insert>'; spc = '<Space>'; pgup = '<PageUp>'; pgdn = '<PageDown>'; left = '<Left>'; right = '<Right>'; up = '<Up>'; down = '<Down>'; home = '<Home>'; end = '<End>' }
-        Emacs   = @{ esc = 'ESC'; ret = 'RET'; tab = 'TAB'; bspc = 'DEL'; del = 'DELETE'; spc = 'SPC'; left = '<left>'; right = '<right>'; up = '<up>'; down = '<down>' }
-        Helix   = @{ esc = 'esc'; ret = 'ret'; tab = 'tab'; bspc = 'backspace'; del = 'delete'; spc = 'space'; left = 'left'; right = 'right'; up = 'up'; down = 'down'; home = 'home'; end = 'end'; pgup = 'pageup'; pgdn = 'pagedown' }
-        Nushell = @{ esc = 'esc'; ret = 'enter'; tab = 'tab'; bspc = 'backspace'; del = 'delete'; ins = 'insert'; spc = 'space'; left = 'left'; right = 'right'; up = 'up'; down = 'down'; home = 'home'; end = 'end'; pgup = 'pageup'; pgdn = 'pagedown' }
+        VSCode     = @{ esc = 'escape'; ret = 'enter'; bspc = 'backspace'; spc = 'space'; pgup = 'pageup'; pgdn = 'pagedown'; left = 'left'; right = 'right'; up = 'up'; down = 'down'; kp0 = 'num0'; kp1 = 'num1'; kp2 = 'num2'; kp3 = 'num3'; kp4 = 'num4'; kp5 = 'num5'; kp6 = 'num6'; kp7 = 'num7'; kp8 = 'num8'; kp9 = 'num9'; 'kp+' = 'numadd'; 'kp-' = 'numsub'; 'kp*' = 'multiply'; 'kp/' = 'divide'; 'kp.' = 'decimal' }
+        Vim        = @{ esc = '<Esc>'; ret = '<CR>'; tab = '<Tab>'; bspc = '<BS>'; del = '<Del>'; ins = '<Insert>'; spc = '<Space>'; pgup = '<PageUp>'; pgdn = '<PageDown>'; left = '<Left>'; right = '<Right>'; up = '<Up>'; down = '<Down>'; home = '<Home>'; end = '<End>' }
+        Emacs      = @{ esc = 'ESC'; ret = 'RET'; tab = 'TAB'; bspc = 'DEL'; del = 'DELETE'; spc = 'SPC'; left = '<left>'; right = '<right>'; up = '<up>'; down = '<down>' }
+        Helix      = @{ esc = 'esc'; ret = 'ret'; tab = 'tab'; bspc = 'backspace'; del = 'delete'; spc = 'space'; left = 'left'; right = 'right'; up = 'up'; down = 'down'; home = 'home'; end = 'end'; pgup = 'pageup'; pgdn = 'pagedown' }
+        Nushell    = @{ esc = 'esc'; ret = 'enter'; tab = 'tab'; bspc = 'backspace'; del = 'delete'; ins = 'insert'; spc = 'space'; left = 'left'; right = 'right'; up = 'up'; down = 'down'; home = 'home'; end = 'end'; pgup = 'pageup'; pgdn = 'pagedown' }
     }
 
     $rendered = foreach ($chord in ($Canonical -split '\s*,\s*')) {
@@ -232,13 +232,13 @@ function ConvertFrom-KeyComboCanonical {
         }
         elseif ($Style -eq 'Nushell') {
             $nushellModifiers = @($modifiers | ForEach-Object {
-                switch -Regex ($_) {
-                    '^r?ctrl$' { 'control'; break }
-                    '^r?meta$' { 'meta'; break }
-                    '^r?alt$' { 'alt'; break }
-                    '^r?shift$' { 'shift'; break }
-                }
-            } | Select-Object -Unique)
+                    switch -Regex ($_) {
+                        '^r?ctrl$' { 'control'; break }
+                        '^r?meta$' { 'meta'; break }
+                        '^r?alt$' { 'alt'; break }
+                        '^r?shift$' { 'shift'; break }
+                    }
+                } | Select-Object -Unique)
             $modifierText = if ($nushellModifiers.Count) { $nushellModifiers -join '_' } else { 'none' }
             if ($key -match '^[a-z0-9]$') { $nuKey = "char_$key" }
             elseif ($key -match '^f\d+$') { $nuKey = $key }
@@ -341,7 +341,7 @@ function Search-KeyComboNotes {
     )
 
     $query = ConvertTo-KeyComboText $Combo -Style Search
-    $rgj = Get-Command rgj -CommandType Function,Alias,Application -ErrorAction SilentlyContinue
+    $rgj = Get-Command rgj -CommandType Function, Alias, Application -ErrorAction SilentlyContinue
     if (-not $rgj) {
         throw "The rgj note-search command is not available. Import CLI-Basic first."
     }

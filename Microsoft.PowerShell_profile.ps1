@@ -1,3 +1,8 @@
+# Avoid scanning every module directory for the first Set-Alias/Join-Path call.
+# Use the modules shipped with this PowerShell installation.
+Import-Module "$PSHOME/Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1"
+Import-Module "$PSHOME/Modules/Microsoft.PowerShell.Management/Microsoft.PowerShell.Management.psd1"
+
 function global:Backup-Environment($Verbose = $null) {
     $ProfilePath = Split-Path $($PROFILE.CurrentUserCurrentHost) -Parent
     Copy-Item "$env:p7settingDir\Microsoft.PowerShell_profile.ps1" $ProfilePath -Force
@@ -6,6 +11,7 @@ function global:Backup-Environment($Verbose = $null) {
 }
 
 function P7() {
+    if ($global:P7Initialized) { return }
     Invoke-Expression (&starship init powershell)
     # function prompt {
     #     prmt --code $LASTEXITCODE '{path:cyan} {git:purple} {python:yellow:m: 🐍} {time:dim}\n{ok:green}{fail:red} '
@@ -16,6 +22,7 @@ function P7() {
     Get-ChildItem Alias:/rd | Out-Null && Remove-Item Alias:rd -ErrorAction SilentlyContinue
     Set-Alias -Name cd -Value z -Scope Global -Option AllScope 
     Set-Alias -Name cdi -Value zi -Scope Global -Option AllScope 
+    $global:P7Initialized = $true
 }
 
 $global:initialModuleList = @(
@@ -38,9 +45,18 @@ $global:extraModuleList = @(
 )
 $global:personalModuleList = $global:initialModuleList + $global:extraModuleList
 function initShellApp() {
-    foreach ($module in $global:initialModuleList) {
-        Import-Module -Name (Join-Path $env:p7settingDir $module) -Scope Global 
+    $moduleRoot = Join-Path $env:p7settingDir 'modules'
+    if ($moduleRoot -notin ($env:PSModulePath -split [IO.Path]::PathSeparator)) {
+        $env:PSModulePath = $moduleRoot + [IO.Path]::PathSeparator + $env:PSModulePath
     }
+    . (Join-Path $env:p7settingDir 'LazyAliases.ps1')
+
+    # Keep every editing shortcut ready, including Alt+V. Optional utilities
+    # remain lazy; built-in PSReadLine resolves without a module-path scan.
+    if (-not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected) {
+        Import-Module "$PSHOME/Modules/PSReadLine/PSReadLine.psd1"
+    }
+    Import-Module (Join-Path $env:p7settingDir 'quickPSReadLine.psm1') -Scope Global
 }
 
 function Restart-ModuleList() {
@@ -94,15 +110,16 @@ function Set-LocationWhere(
     $files = (Get-Clipboard),
     [switch]$outHost
 ) {
-    $whichBackend = "scoop w" # INFO: default is `which` that windows provide. but this return a list.
-    try {
-        $tryWhichCommand = Invoke-Expression "$whichBackend $files 2>`$null" -ErrorAction SilentlyContinue
-        # $initialInfo = Get-Command $files 
-        $commandInfo = Get-Command $tryWhichCommand -ErrorAction SilentlyContinue
+    # Resolve the requested command first. Scoop's `scoop w` output can be a
+    # warning or a shim path, so it must not be used as the primary resolver.
+    $commandInfo = @(Get-Command -Name $files -ErrorAction SilentlyContinue | Select-Object -First 1)[0]
+    if (-not $commandInfo) {
+        $tryWhichCommand = Invoke-Expression "scoop w $files 2>`$null" -ErrorAction SilentlyContinue
+        $commandInfo = @(Get-Command -Name $tryWhichCommand -ErrorAction SilentlyContinue | Select-Object -First 1)[0]
     }
-    catch {
-        # $initialInfo = $null
-        $commandInfo = Get-Command $files -ErrorAction SilentlyContinue
+    if (-not $commandInfo) {
+        Write-Error "Could not resolve command or script '$files'."
+        return
     }
 
     # echo ($commandInfo).PSObject.TypeNames
@@ -152,7 +169,7 @@ function Set-LocationWhere(
                 $ScriptFile = $commandInfo.ScriptBlock.File
                 $resolvedPath = if ($ScriptFile) { $ScriptFile } else { $ModulePath }
                 
-                $linkInfo = Format-Hyperlink $commandInfo.Source $resolvedPath
+                $linkInfo = if (Get-Command Format-Hyperlink -ErrorAction SilentlyContinue) { Format-Hyperlink $commandInfo.Source $resolvedPath } else { $resolvedPath }
 
                 Write-Host "function from $linkInfo module/script." -ForegroundColor Yellow -BackgroundColor DarkBlue
                 Write-Host $commandInfo.Definition
@@ -169,7 +186,7 @@ function Set-LocationWhere(
                 $definition = ($commandInfo).Definition
                 $ModuleInfo = Get-Module $commandInfo.Source
                 $ModulePath = $ModuleInfo.Path
-                $linkInfo = Format-Hyperlink $commandInfo.Source $ModulePath
+                $linkInfo = if (Get-Command Format-Hyperlink -ErrorAction SilentlyContinue) { Format-Hyperlink $commandInfo.Source $ModulePath } else { $ModulePath }
 
                 Write-Host "alias of $definition , source: $linkInfo" -ForegroundColor Yellow -BackgroundColor Black
                 $definitionInfo = Get-Command $definition
@@ -179,8 +196,7 @@ function Set-LocationWhere(
             "ExternalScript" {
                 $definition = ($commandInfo).Source
                 $scriptName = $commandInfo.Name
-                $linkInfo = Format-Hyperlink $scriptName $commandInfo.Source
-                Write-Host "Script from $linkInfo." -ForegroundColor Yellow -BackgroundColor DarkBlue
+                Write-Host "Script from $($commandInfo.Source)." -ForegroundColor Yellow -BackgroundColor DarkBlue
 
                 if (-not (Test-Path $definition -ErrorAction Ignore)) {
                     Write-Error "Had tried, still failed on shim."
@@ -188,21 +204,20 @@ function Set-LocationWhere(
                 }
 
                 try {
-                    $ScriptContent = Get-Content $definition -ErrorAction Stop
-                    Write-Host $ScriptContent -BackgroundColor DarkGreen -ForegroundColor White
-                    
-                    # Try to extract path from variable assignments like $path = '...'
-                    $pathLine = $ScriptContent | Where-Object { $_ -match '\$\w+\s*=\s*[''"](.+?)[''"]' }
-                    if ($pathLine) {
-                        $extractedPath = $Matches[1]
+                    $scriptContent = Get-Content -LiteralPath $definition -Raw -ErrorAction Stop
+                    Write-Host $scriptContent -BackgroundColor DarkGreen -ForegroundColor White
+
+                    # Scoop shims contain an assignment such as $path = 'C:\\tool\\tool.exe'.
+                    $pathMatch = [regex]::Match($scriptContent, '(?m)\$\w+\s*=\s*[''\"](?<path>[^''\"]+)[''\"]')
+                    if ($pathMatch.Success -and (Test-Path -LiteralPath $pathMatch.Groups['path'].Value)) {
+                        $extractedPath = $pathMatch.Groups['path'].Value
                         Write-Host "Extracted path: $extractedPath" -ForegroundColor Cyan
-                        cdcb -defaultDir $extractedPath -outHost:$outHost
+                        $targetPath = Split-Path -Path $extractedPath -Parent
+                        if ($outHost) { Write-Output $targetPath } else { Set-Location -LiteralPath $targetPath }
                     }
                     else {
-                        # Fallback to original method
-                        Write-Output $ScriptContent |`
-                                Select-Object -Index 0 |`
-                                Get-PathFromFiles | cdcb -outHost:$outHost
+                        $targetPath = Split-Path -Path $definition -Parent
+                        if ($outHost) { Write-Output $targetPath } else { Set-Location -LiteralPath $targetPath }
                     }
                 }
                 catch {

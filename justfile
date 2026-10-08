@@ -12,6 +12,7 @@ export JUST_ENV := "just_env" # WARN: this is also a method to export env var.
 _default:
     @just --choose
 
+alias fm := format
 alias fmt := format
 format args="nothing":
     Import-Module ./Formatter.psm1 -Force && gci *.psm1,*.ps1 | % { Format-PowerShellFile $_ }
