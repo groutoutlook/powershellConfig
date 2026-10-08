@@ -55,7 +55,7 @@ function Get-Playlistmpv(
     elseif ($Mode -eq "rg") {
         if ($stringSearch -ne "") {
             $finalPattern = $stringSearch -join ".*"
-            rg $finalPattern $jtb["ms"] -C 5 | ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
+            rg $finalPattern (Get-JrnlJournalTable)["ms"] -C 5 | ForEach-Object { filterURI $_ $stripUnplay >> $global:playlistTemp }
         }
         mpv --input-ipc-server=\\.\pipe\mpv-ipc --playlist="$global:playlistTemp"  --ytdl-format=bestvideo[height<=?1080]+bestaudio/best --loop-playlist=1 --vid=$videoOption --panscan=1.0 --sub-pos=20 --sub-color=1.0/0.2/0.2/0.5
     }

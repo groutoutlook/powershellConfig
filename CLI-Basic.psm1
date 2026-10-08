@@ -91,10 +91,64 @@ function Build-PatternFromPureTokens {
 function rgj
 (
 ) {
-    $obsPath = zoxide query obs
+    # Optional journal selector. The normal form remains `rgj term ...`;
+    # `rgj --journal vc term ...` restricts the search to jrnl's `vc` map entry.
+    $journalSelector = $null
+    $searchArgs = @()
+    for ($index = 0; $index -lt $args.Count; $index++) {
+        $argument = [string]$args[$index]
+        if ($argument -in @('-j', '--journal')) {
+            if ($index + 1 -ge $args.Count) {
+                throw "$argument requires a jrnl abbreviation."
+            }
+            $journalSelector = [string]$args[++$index]
+        }
+        elseif ($argument -match '^@(.+)$') {
+            $journalSelector = $Matches[1]
+        }
+        elseif ($argument -match '^\[(.+)\]$') {
+            $journalSelector = $Matches[1]
+        }
+        else {
+            $searchArgs += $args[$index]
+        }
+    }
+
+    $searchTarget = $null
+    if ($journalSelector) {
+        $jrnlCommand = Get-Command jrnl -ErrorAction SilentlyContinue
+        if (-not $jrnlCommand) {
+            throw 'jrnl was not found on PATH; cannot resolve a journal abbreviation.'
+        }
+        $jrnlJson = (& $jrnlCommand.Source --list --format json 2>$null) -join "`n"
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($jrnlJson)) {
+            throw 'jrnl --list --format json did not return its journal map.'
+        }
+        $jrnlMap = $jrnlJson | ConvertFrom-Json
+        $journalEntries = @($jrnlMap.journals.PSObject.Properties)
+        $journalMatches = @($journalEntries | Where-Object { $_.Name -ieq $journalSelector })
+        if ($journalMatches.Count -eq 0) {
+            $journalMatches = @($journalEntries | Where-Object { $_.Name -ilike "$journalSelector*" })
+        }
+        if ($journalMatches.Count -eq 0) {
+            throw "Unknown jrnl abbreviation '$journalSelector'."
+        }
+        if ($journalMatches.Count -gt 1) {
+            throw "Ambiguous jrnl abbreviation '$journalSelector': $($journalMatches.Name -join ', ')"
+        }
+        $journalPath = [string]$journalMatches[0].Value.journal
+        if ($journalPath -match '^~([\\/]|$)') {
+            $journalPath = Join-Path $HOME ($journalPath.Substring(2) -replace '/', '\')
+        }
+        $searchTarget = $journalPath
+        Write-Host "Searching journal '$($journalMatches[0].Name)': $searchTarget" -ForegroundColor DarkCyan
+    }
+    else {
+        $searchTarget = zoxide query obs
+    }
 
     # Modular parsing: split dash options and pure tokens
-    $parsed = Get-SearchArgs -InputArgs $args
+    $parsed = Get-SearchArgs -InputArgs $searchArgs
     $pureTokens = @($parsed.PureTokens)
     $dashArgs = @($parsed.DashArgs)
 
@@ -107,8 +161,9 @@ function rgj
 
     $dashArgsCombined = @($dashArgs + $extraDash)
     $pattern = $build.Pattern
+    $journalGlob = if ($journalSelector) { @() } else { @('-g', '*Journal.md') }
 
-    & rg -g '*Journal.md' -M 400 -A3 @dashArgsCombined -- $pattern $obsPath
+    & rg @journalGlob -M 400 -A3 @dashArgsCombined -- $pattern $searchTarget
 
     if ($? -eq $false) {
         Write-Host "not in those journal.md, trying rotate mode..." -ForegroundColor Magenta
@@ -146,7 +201,7 @@ function rgj
                 $newTerms += $tail
 
                 $testPattern = Join-SearchPattern -Terms $newTerms -PatternBetween $patternBetween -RequireNewline:$requireNewline
-                & rg -g '*Journal.md' -M 400 -A3 @dashArgsCombined -- $testPattern $obsPath
+                & rg @journalGlob -M 400 -A3 @dashArgsCombined -- $testPattern $searchTarget
                 if ($?) {
                     $found = $true
                     $order = ($newTerms | Where-Object { $_ -is [string] -and $_ -notmatch '^-' }) -join ' '
