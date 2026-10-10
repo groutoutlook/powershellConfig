@@ -1375,6 +1375,46 @@ $WherePipeParameter = @{
     }
 }
 
+$ExchangePointAndMarkParameters = @{
+    Key              = 'Alt+;'
+    BriefDescription = 'exchange cursor and selection anchor'
+    LongDescription  = 'Swap the cursor position with the selection anchor while keeping the selection.'
+    ScriptBlock      = {
+        param($key, $arg)
+
+        $selectionStart = $null
+        $selectionLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+        if ($selectionStart -lt 0 -or $selectionLength -le 0) {
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
+            return
+        }
+
+        $line = $null
+        $cursor = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+        $selectionEnd = $selectionStart + $selectionLength
+        $cursorAtStart = $cursor -eq $selectionStart
+
+        # Recreate the same range with the active end reversed. SetMark is
+        # used after moving because moving the point clears the old selection.
+        if ($cursorAtStart) {
+            # The current point is at the start; select forward so the new
+            # point ends at the other side of the same range.
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart)
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
+            [Microsoft.PowerShell.PSConsoleReadLine]::SelectForwardChar($null, $selectionLength)
+        }
+        else {
+            # The current point is at the end; select backward so the new
+            # point ends at the other side of the same range.
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionEnd)
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
+            [Microsoft.PowerShell.PSConsoleReadLine]::SelectBackwardChar($null, $selectionLength)
+        }
+    }
+}
+
 
 
 $GlobalEditorSwitch = @{
@@ -1503,6 +1543,7 @@ $HandlerParameters = @(
     , $WrapPipeParameter
     , $ToggleCaseParameter
     , $WherePipeParameter
+    , $ExchangePointAndMarkParameters
     , $SelectPipeParameter
     , $rgToNvimParameters
     , $rgToRggParameters
@@ -1751,6 +1792,80 @@ function Invoke-TvShellHistory {
 }
 
 
+function Test-CompletionMenuOverflow {
+    param(
+        [Parameter(Mandatory)]
+        [object[]]$CompletionMatches
+    )
+
+    $windowWidth = 120
+    try {
+        if ([Console]::WindowWidth -gt 0) { $windowWidth = [Console]::WindowWidth }
+    }
+    catch { }
+    try {
+        $spaceBelow = Get-AvailableSpaceBelowPrompt
+    }
+    catch {
+        $spaceBelow = 20
+    }
+
+    $maxMenuItems = [Math]::Min(40, [Math]::Max(8, $spaceBelow - 4))
+    $maxItemWidth = [Math]::Max(24, [Math]::Floor($windowWidth / 2))
+    $hasLongName = @($CompletionMatches | Where-Object {
+            ([string]$_.ListItemText).Length -ge $maxItemWidth
+        }).Count -gt 0
+    $displayWidth = @($CompletionMatches | ForEach-Object {
+            ([string]$_.ListItemText).Length + 2
+        } | Measure-Object -Sum).Sum
+    $estimatedRows = [Math]::Ceiling($displayWidth / $windowWidth)
+
+    return $CompletionMatches.Count -gt $maxMenuItems -or
+        $estimatedRows -gt [Math]::Max(4, $spaceBelow - 2) -or
+        $hasLongName
+}
+
+function Invoke-PathCompletion {
+    param(
+        [Parameter(Mandatory)]
+        [object]$Key,
+        [object]$Argument
+    )
+
+    $line = $null
+    $cursor = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+    $completion = [System.Management.Automation.CommandCompletion]::CompleteInput($line, $cursor, $null)
+    $pathMatches = @($completion.CompletionMatches | Where-Object {
+            $_.ResultType -eq [System.Management.Automation.CompletionResultType]::ProviderContainer -or
+            $_.ResultType -eq [System.Management.Automation.CompletionResultType]::ProviderItem
+        })
+
+    if ($pathMatches.Count -eq 0 -or -not (Test-CompletionMenuOverflow -CompletionMatches $pathMatches)) {
+        [Microsoft.PowerShell.PSConsoleReadLine]::MenuComplete($Key, $Argument)
+        return
+    }
+
+    Write-Warning ("{0} path completions are too large for the console; using fzf to select one." -f $pathMatches.Count)
+    if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) {
+        Write-Warning 'fzf is not available; path completion was cancelled.'
+        return
+    }
+
+    $selectedPath = @($pathMatches.CompletionText | & fzf --prompt 'Select path> ' | Select-Object -First 1)
+    if ($selectedPath) {
+        $selectedPath = [string]$selectedPath[0]
+        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(
+            $completion.ReplacementIndex,
+            $completion.ReplacementLength,
+            $selectedPath
+        )
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition(
+            $completion.ReplacementIndex + $selectedPath.Length
+        )
+    }
+}
+
 function Invoke-DirectoryMenuComplete {
     $line = $null
     $cursor = $null
@@ -1764,30 +1879,46 @@ function Invoke-DirectoryMenuComplete {
     $pathPrefix = 'Set-Location -Path '
     $menuLine = $pathPrefix + $line.Substring($start, $cursor - $start)
     $directoryCompletion = [System.Management.Automation.CommandCompletion]::CompleteInput($menuLine, $menuLine.Length, $null)
-    if ($directoryCompletion.CompletionMatches.Count -eq 0 -or
-        @($directoryCompletion.CompletionMatches | Where-Object ResultType -ne ProviderContainer).Count -ne 0) {
+    $directoryMatches = @($directoryCompletion.CompletionMatches | Where-Object ResultType -eq ProviderContainer)
+    if ($directoryMatches.Count -eq 0 -or
+        $directoryMatches.Count -ne $directoryCompletion.CompletionMatches.Count) {
         return
     }
 
-    $selectedPath = $null
-    try {
-        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $menuLine)
-        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($menuLine.Length)
-        [Microsoft.PowerShell.PSConsoleReadLine]::MenuComplete()
+    # A large PSReadLine completion menu wraps long names and consumes the
+    # prompt.  Use fzf when the candidates cannot reasonably fit below it.
+    $useFzf = Test-CompletionMenuOverflow -CompletionMatches $directoryMatches
 
-        $completedLine = $null
-        $completedCursor = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$completedLine, [ref]$completedCursor)
-        if ($completedLine.StartsWith($pathPrefix) -and $completedLine -ne $menuLine) {
-            $selectedPath = $completedLine.Substring($pathPrefix.Length)
+    $selectedPath = $null
+    if ($useFzf) {
+        Write-Warning ("{0} directory completions are too large for the console; using fzf to select one." -f $directoryMatches.Count)
+        if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) {
+            Write-Warning 'fzf is not available; directory completion was cancelled.'
+            return
         }
+        $selectedPath = @($directoryMatches.CompletionText | & fzf --prompt 'Select directory> ' | Select-Object -First 1)
+        if ($selectedPath) { $selectedPath = [string]$selectedPath[0] }
     }
-    finally {
-        $currentLine = $null
-        $currentCursor = $null
-        [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$currentLine, [ref]$currentCursor)
-        [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $currentLine.Length, $line)
-        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor)
+    else {
+        try {
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $line.Length, $menuLine)
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($menuLine.Length)
+            [Microsoft.PowerShell.PSConsoleReadLine]::MenuComplete()
+
+            $completedLine = $null
+            $completedCursor = $null
+            [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$completedLine, [ref]$completedCursor)
+            if ($completedLine.StartsWith($pathPrefix) -and $completedLine -ne $menuLine) {
+                $selectedPath = $completedLine.Substring($pathPrefix.Length)
+            }
+        }
+        finally {
+            $currentLine = $null
+            $currentCursor = $null
+            [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$currentLine, [ref]$currentCursor)
+            [Microsoft.PowerShell.PSConsoleReadLine]::Replace(0, $currentLine.Length, $line)
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor)
+        }
     }
 
     if ($null -ne $selectedPath) {
@@ -2101,6 +2232,10 @@ function setAllHandler() {
     #Set-PSReadLineKeyHandler -Key 'Alt+c' -ScriptBlock { Invoke-PoshFzfChangeDirectory }
     #Set-PSReadLineKeyHandler -Key 'Ctrl+r' -ScriptBlock { Invoke-TvShellHistory }
     Set-PSReadLineKeyHandler -Key 'Ctrl+t' -ScriptBlock { Invoke-TvSmartAutocomplete }
+    Set-PSReadLineKeyHandler -Key 'Ctrl+Spacebar' -BriefDescription 'CompletePathOrFzf' -Description 'Complete paths, using fzf when the completion list is too large' -ScriptBlock {
+        param($key, $arg)
+        Invoke-PathCompletion -Key $key -Argument $arg
+    }
     # PSReadLine normalizes Ctrl+Alt+Spacebar to Spacebar, so preserve plain-space behavior here.
     Set-PSReadLineKeyHandler -Key 'Ctrl+Alt+Spacebar' -BriefDescription 'CompleteDirectory' -Description 'Complete directories using the PSReadLine menu' -ScriptBlock {
         param($key, $arg)

@@ -243,6 +243,11 @@ $parsing_id = {
                 $id = [uri]::UnescapeDataString($segments[-1]).ToLowerInvariant()
             }
         }
+        { $_ -match '(^|\.)stackexchange\.com$' } {
+            if ($uri.AbsolutePath -match '^/(?:questions|q|answers|a|posts)/(?<id>\d+)(?:/|$)') {
+                $id = $matches['id']
+            }
+        }
         default {
             # Unknown domains can search a selected path child, or the full
             # normalized domain when no child was requested.
@@ -308,6 +313,7 @@ function Select-ID {
         rgj $id
     }
 
+    # TODO: If URI/DNS matches are ever counted here, add colored prompts for >30, >50, and >100 matches.
     Write-Warning "Search completed for '$($id -join ' | ')'. Adjust the query manually if needed."
 }
 
@@ -343,6 +349,7 @@ function Invoke-SelectedID(
         igj $id
     }
 
+    # TODO: If URI/DNS matches are ever counted here, add colored prompts for >30, >50, and >100 matches.
     Write-Warning "Search completed for '$($id -join ' | ')'. Adjust the query manually if needed."
 }
 Set-Alias -Name iid -Value Invoke-SelectedID

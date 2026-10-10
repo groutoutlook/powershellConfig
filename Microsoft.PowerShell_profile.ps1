@@ -205,15 +205,20 @@ function Set-LocationWhere(
 
                 try {
                     $scriptContent = Get-Content -LiteralPath $definition -Raw -ErrorAction Stop
-                    Write-Host $scriptContent -BackgroundColor DarkGreen -ForegroundColor White
+                    Write-Verbose $scriptContent
 
                     # Scoop shims contain an assignment such as $path = 'C:\\tool\\tool.exe'.
                     $pathMatch = [regex]::Match($scriptContent, '(?m)\$\w+\s*=\s*[''\"](?<path>[^''\"]+)[''\"]')
-                    if ($pathMatch.Success -and (Test-Path -LiteralPath $pathMatch.Groups['path'].Value)) {
+                    if ($pathMatch.Success) {
                         $extractedPath = $pathMatch.Groups['path'].Value
-                        Write-Host "Extracted path: $extractedPath" -ForegroundColor Cyan
                         $targetPath = Split-Path -Path $extractedPath -Parent
-                        if ($outHost) { Write-Output $targetPath } else { Set-Location -LiteralPath $targetPath }
+                        if (Test-Path -LiteralPath $targetPath -PathType Container) {
+                            if ($outHost) { Write-Output $targetPath } else { Set-Location -LiteralPath $targetPath }
+                        }
+                        else {
+                            Write-Error "Command target directory not found: $targetPath (from shim '$definition')."
+                            return
+                        }
                     }
                     else {
                         $targetPath = Split-Path -Path $definition -Parent

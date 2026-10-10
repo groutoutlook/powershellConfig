@@ -18,7 +18,7 @@ Assert ((Get-Alias p7mod).Options -notmatch 'AllScope') 'p7mod has incompatible 
 # Validate the complete key table without requiring a live interactive buffer.
 Import-Module "$PSHOME/Modules/PSReadLine/PSReadLine.psd1"
 setAllHandler
-foreach ($chord in @('Alt+v', 'Alt+s', 'Alt+a', 'Ctrl+9', 'Ctrl+Oem4', 'Ctrl+r', 'Ctrl+s', 'Ctrl+x,Ctrl+x')) {
+foreach ($chord in @('Alt+v', 'Alt+s', 'Alt+a', 'Alt+;', 'Ctrl+9', 'Ctrl+Oem4', 'Ctrl+r', 'Ctrl+s', 'Ctrl+Spacebar', 'Ctrl+x,Ctrl+x')) {
     Assert ([bool](Get-PSReadLineKeyHandler -Chord $chord)) "$chord is missing"
 }
 
