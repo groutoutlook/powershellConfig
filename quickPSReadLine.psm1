@@ -64,6 +64,129 @@ function Invoke-PSReadLineWrapToken {
     [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($cursor + $Open.Length)
 }
 
+function ConvertTo-PSReadLineAdjustedValue {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Value,
+        [Parameter(Mandatory)]
+        [ValidateSet(-1, 1)]
+        [int]$Delta
+    )
+
+    # cd-/cd+ are a two-state navigation cycle rather than numeric signs.
+    # Keep a numeric suffix such as cd-2 paired with the same suffix on the
+    # other side; either adjustment chord advances the cycle.
+    if ($Value -cmatch '^(?<name>cd)(?<direction>[+-])(?<count>\d*)$') {
+        $targetDirection = if ($Matches['direction'] -eq '-') { '+' } else { '-' }
+        return "$($Matches['name'])$targetDirection$($Matches['count'])"
+    }
+
+    # get/set and eq/ne are also two-state cycles.  Accept an optional
+    # command-verb hyphen and the operator's PowerShell - prefix.
+    if ($Value -match '^(?<verb>get|set)(?<verbSuffix>-?)$') {
+        $replacementVerb = if ($Matches['verb'] -ieq 'get') { 'set' } else { 'get' }
+        if ($Matches['verb'] -cmatch '^[A-Z]+$') {
+            $replacementVerb = $replacementVerb.ToUpperInvariant()
+        }
+        elseif ($Matches['verb'] -cmatch '^[A-Z][a-z]+$') {
+            $replacementVerb = $replacementVerb.Substring(0, 1).ToUpperInvariant() + $replacementVerb.Substring(1)
+        }
+        return "$replacementVerb$($Matches['verbSuffix'])"
+    }
+    if ($Value -match '^(?<operatorPrefix>-?)(?<operator>eq|ne)$') {
+        $replacementOperator = if ($Matches['operator'] -ieq 'eq') { 'ne' } else { 'eq' }
+        if ($Matches['operator'] -cmatch '^[A-Z]+$') {
+            $replacementOperator = $replacementOperator.ToUpperInvariant()
+        }
+        return "$($Matches['operatorPrefix'])$replacementOperator"
+    }
+
+    # Toggle boolean spellings while preserving the optional $ prefix,
+    # matching quote, and simple casing style.
+    if ($Value -match '^(?<prefix>\$?)(?<quote>[''"]?)(?<word>true|false)(?<closeQuote>[''"]?)$' -and
+        $Matches['quote'] -eq $Matches['closeQuote'] -and
+        -not ($Matches['prefix'] -eq '$' -and $Matches['quote'])) {
+        $word = $Matches['word']
+        $replacementWord = if ($word -ieq 'true') { 'false' } else { 'true' }
+        if ($word -cmatch '^[A-Z]+$') {
+            $replacementWord = $replacementWord.ToUpperInvariant()
+        }
+        elseif ($word -cmatch '^[A-Z][a-z]+$') {
+            $replacementWord = $replacementWord.Substring(0, 1).ToUpperInvariant() + $replacementWord.Substring(1)
+        }
+        return "$($Matches['prefix'])$($Matches['quote'])$replacementWord$($Matches['closeQuote'])"
+    }
+
+    if ($Value -notmatch '^(?<sign>[+-]?)(?<digits>\d+)$') {
+        return $null
+    }
+
+    [long]$number = 0
+    $parsed = [long]::TryParse(
+        $Value,
+        [System.Globalization.NumberStyles]::Integer,
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [ref]$number
+    )
+    if (-not $parsed -or
+        ($Delta -gt 0 -and $number -eq [long]::MaxValue) -or
+        ($Delta -lt 0 -and $number -eq [long]::MinValue)) {
+        return $null
+    }
+
+    $next = $number + $Delta
+    $absoluteDigits = ([Math]::Abs($next)).ToString([System.Globalization.CultureInfo]::InvariantCulture)
+    $originalDigits = $Matches['digits']
+    if ($absoluteDigits.Length -lt $originalDigits.Length) {
+        $absoluteDigits = $absoluteDigits.PadLeft($originalDigits.Length, '0')
+    }
+
+    $sign = if ($next -lt 0) { '-' } elseif ($Matches['sign'] -eq '+') { '+' } else { '' }
+    return "$sign$absoluteDigits"
+}
+
+function Invoke-PSReadLineAdjustSelection {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet(-1, 1)]
+        [int]$Delta
+    )
+
+    $selectionStart = $null
+    $selectionLength = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$selectionStart, [ref]$selectionLength)
+    if ($selectionStart -lt 0 -or $selectionLength -le 0) {
+        [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+        return
+    }
+
+    $line = $null
+    $cursor = $null
+    [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
+    $selectedText = $line.Substring($selectionStart, $selectionLength)
+    $replacement = ConvertTo-PSReadLineAdjustedValue -Value $selectedText -Delta $Delta
+    if ($null -eq $replacement) {
+        [Microsoft.PowerShell.PSConsoleReadLine]::Ding()
+        return
+    }
+
+    $selectionEnd = $selectionStart + $selectionLength
+    $cursorAtStart = $cursor -eq $selectionStart
+    [Microsoft.PowerShell.PSConsoleReadLine]::Replace($selectionStart, $selectionLength, $replacement)
+
+    # Keep the active selection so repeated chords adjust the same value.
+    if ($cursorAtStart) {
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SelectForwardChar($null, $replacement.Length)
+    }
+    else {
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart + $replacement.Length)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
+        [Microsoft.PowerShell.PSConsoleReadLine]::SelectBackwardChar($null, $replacement.Length)
+    }
+}
+
 $ggSearchParameters = @{
     Key              = 'Ctrl+shift+alt+w' # limbo
     BriefDescription = 'Web Search Mode'
@@ -1377,8 +1500,8 @@ $WherePipeParameter = @{
 
 $ExchangePointAndMarkParameters = @{
     Key              = 'Alt+;'
-    BriefDescription = 'exchange cursor and selection anchor'
-    LongDescription  = 'Swap the cursor position with the selection anchor while keeping the selection.'
+    BriefDescription = 'switch cursor and expand selection'
+    LongDescription  = 'Switch right or left and expand the current selection to include the next cluster in that direction.'
     ScriptBlock      = {
         param($key, $arg)
 
@@ -1396,18 +1519,37 @@ $ExchangePointAndMarkParameters = @{
         $selectionEnd = $selectionStart + $selectionLength
         $cursorAtStart = $cursor -eq $selectionStart
 
-        # Recreate the same range with the active end reversed. SetMark is
-        # used after moving because moving the point clears the old selection.
         if ($cursorAtStart) {
-            # The current point is at the start; select forward so the new
-            # point ends at the other side of the same range.
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionEnd)
+            & $IterateCommandParameters.ScriptBlock $key $arg
+        }
+        else {
+            [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart)
+            & $IterateCommandReverseParameters.ScriptBlock $key $arg
+
+        }
+
+        $clusterStart = $null
+        $clusterLength = $null
+        [Microsoft.PowerShell.PSConsoleReadLine]::GetSelectionState([ref]$clusterStart, [ref]$clusterLength)
+        # Retain the original range, including the gap to the next cluster.
+        # At a line boundary, ignore Alt+A / Alt+S wrapping to the other side.
+        if ($clusterStart -ge 0 -and $clusterLength -gt 0) {
+            if ($cursorAtStart) {
+                $selectionEnd = [Math]::Max($selectionEnd, $clusterStart + $clusterLength)
+            }
+            else {
+                $selectionStart = [Math]::Min($selectionStart, $clusterStart)
+            }
+        }
+        $selectionLength = $selectionEnd - $selectionStart
+
+        if ($cursorAtStart) {
             [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionStart)
             [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
             [Microsoft.PowerShell.PSConsoleReadLine]::SelectForwardChar($null, $selectionLength)
         }
         else {
-            # The current point is at the end; select backward so the new
-            # point ends at the other side of the same range.
             [Microsoft.PowerShell.PSConsoleReadLine]::SetCursorPosition($selectionEnd)
             [Microsoft.PowerShell.PSConsoleReadLine]::SetMark($null, $null)
             [Microsoft.PowerShell.PSConsoleReadLine]::SelectBackwardChar($null, $selectionLength)
@@ -1440,36 +1582,25 @@ $GlobalEditorSwitch = @{
     } 
 }
 
-# INFO: switch between windows mode and vi mode. for easier navigation
-$OptionsSwitchParameters = @{
+# Value adjustment uses Ctrl+X as a prefix, leaving other Ctrl+X chords
+# available for future selection transforms.
+$DecreaseSelectionValueParameters = @{
     Key              = 'Ctrl+x,Ctrl+x'
-    BriefDescription = 'toggle vi navigation'
-    LongDescription  = 'as I mimic the behaviour in zsh'
+    BriefDescription = 'decrease selected value'
+    LongDescription  = 'Decrease a selected integer, or cycle a selected boolean, cd, get/set, or eq/ne value.'
     ScriptBlock      = {
-        param($key, $arg)   # The arguments are ignored in this example
-        OptionsSwitch 
-        setAllHandler
-        # HACK: set the ctrl+r and ctrl+t
-        # MoreTerminalModule
-
-        # INFO: this ensure some color is re-rendered so I can specify the mode.
-        [Microsoft.PowerShell.PSConsoleReadLine]::ClearScreen()
+        param($key, $arg)
+        Invoke-PSReadLineAdjustSelection -Delta -1
     }
 }
 
-
-# INFO: Start Command Mode commands.
-$OptionsSwitch_Command_Parameters = @{
-    Key              = 'Ctrl+x,Ctrl+x'
-    BriefDescription = 'toggle vi navigation in command(normal) mode'
-    LongDescription  = 'This is only included when in ViMode,in command(normal) mode'
-    ViMode           = "Command"
+$IncreaseSelectionValueParameters = @{
+    Key              = 'Ctrl+x,Ctrl+a'
+    BriefDescription = 'increase selected value'
+    LongDescription  = 'Increase a selected integer, or cycle a selected boolean, cd, get/set, or eq/ne value.'
     ScriptBlock      = {
-        param($key, $arg)  
-        OptionsSwitch 
-        setAllHandler
-        # MoreTerminalModule
-        [Microsoft.PowerShell.PSConsoleReadLine]::ClearScreen()
+        param($key, $arg)
+        Invoke-PSReadLineAdjustSelection -Delta 1
     }
 }
 
@@ -1551,7 +1682,8 @@ $HandlerParameters = @(
     , $IterateCommandReverseParameters
     , $MoveSelectionToNextPhraseParameters
     , $MoveSelectionToPreviousPhraseParameters
-    , $OptionsSwitchParameters
+    , $DecreaseSelectionValueParameters
+    , $IncreaseSelectionValueParameters
     , $openEditorParameters
     , $pipeEditorParameters
     , $GlobalEditorSwitch
@@ -1561,8 +1693,7 @@ $HandlerParameters = @(
 )
 # INFO: Unique for Vi mode.
 $ViHandlerParameters = @(
-    $OptionsSwitch_Command_Parameters
-    , $twoKeyEscape_k_Parameters 
+    $twoKeyEscape_k_Parameters 
     , $twoKeyEscape_j_Parameters 
 )
 # INFO: Default of Windows PSReadLineOptions

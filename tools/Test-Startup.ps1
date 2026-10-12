@@ -18,9 +18,24 @@ Assert ((Get-Alias p7mod).Options -notmatch 'AllScope') 'p7mod has incompatible 
 # Validate the complete key table without requiring a live interactive buffer.
 Import-Module "$PSHOME/Modules/PSReadLine/PSReadLine.psd1"
 setAllHandler
-foreach ($chord in @('Alt+v', 'Alt+s', 'Alt+a', 'Alt+;', 'Ctrl+9', 'Ctrl+Oem4', 'Ctrl+r', 'Ctrl+s', 'Ctrl+Spacebar', 'Ctrl+x,Ctrl+x')) {
+foreach ($chord in @('Alt+v', 'Alt+s', 'Alt+a', 'Alt+;', 'Ctrl+9', 'Ctrl+Oem4', 'Ctrl+r', 'Ctrl+s', 'Ctrl+Spacebar', 'Ctrl+x,Ctrl+x', 'Ctrl+x,Ctrl+a')) {
     Assert ([bool](Get-PSReadLineKeyHandler -Chord $chord)) "$chord is missing"
 }
+$decreaseHandler = Get-PSReadLineKeyHandler -Chord 'Ctrl+x,Ctrl+x'
+$increaseHandler = Get-PSReadLineKeyHandler -Chord 'Ctrl+x,Ctrl+a'
+Assert ($decreaseHandler.Function -eq 'decrease selected value') 'Ctrl+X,Ctrl+X has the wrong handler'
+Assert ($increaseHandler.Function -eq 'increase selected value') 'Ctrl+X,Ctrl+A has the wrong handler'
+$readLineModule = Get-Module quickPSReadLine
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value '41' -Delta 1 }) -eq '42') 'Integer increase failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value '$true' -Delta -1 }) -eq '$false') 'Boolean toggle failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value '"true"' -Delta 1 }) -eq '"false"') 'Quoted boolean toggle failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value 'cd-2' -Delta 1 }) -eq 'cd+2') 'cd- to cd+ adjustment failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value 'cd+2' -Delta 1 }) -eq 'cd-2') 'cd+ to cd- adjustment failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value 'cd-2' -Delta -1 }) -eq 'cd+2') 'cd- cycle adjustment failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value 'get-' -Delta 1 }) -eq 'set-') 'get to set adjustment failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value 'set-' -Delta -1 }) -eq 'get-') 'set to get adjustment failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value '-eq' -Delta 1 }) -eq '-ne') '-eq to -ne adjustment failed'
+Assert ((& $readLineModule { ConvertTo-PSReadLineAdjustedValue -Value '-ne' -Delta -1 }) -eq '-eq') '-ne to -eq adjustment failed'
 
 # Force native autoload through the Track target, then verify its IPC dependency.
 $trackCommand = Get-Command Add-NextTrack -CommandType Function
