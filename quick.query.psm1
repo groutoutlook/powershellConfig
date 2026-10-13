@@ -109,6 +109,18 @@ function Resolve-KeyComboCanonical {
     $segments = $sequence -split '\s*,\s*' | Where-Object { $_ -and $_.Trim() }
     $events = foreach ($segment in $segments) {
         $segment = $segment.Trim() -replace '^\[?\d+(?:\.\d+)?\s*(?:ms|s)\]?\s+', ''
+        # Accept the compact dot form (`c.w`) as an alternative to Kanata's
+        # chained prefix form (`c-w`). Only rewrite known modifier prefixes,
+        # so decimal timestamps and literal period keys remain untouched.
+        $segment = (($segment -split '\s+' | ForEach-Object {
+            $dotMatch = [regex]::Match($_, '^(?<modifier>[^.\s]+)\.(?<key>[^.\s]+)$')
+            if ($dotMatch.Success -and $maps.Modifiers.ContainsKey($dotMatch.Groups['modifier'].Value.ToLowerInvariant())) {
+                "$($dotMatch.Groups['modifier'].Value)-$($dotMatch.Groups['key'].Value)"
+            }
+            else {
+                $_
+            }
+        }) -join ' ')
         $segment = $segment -replace '\s*\+\s*', '+'
         $parts = @($segment -split '\s+' | Where-Object { $_ })
         $modifierPrefix = if ($parts.Count -gt 1) { @($parts[0..($parts.Count - 2)] | Where-Object { $maps.Modifiers.ContainsKey($_.ToLowerInvariant()) }).Count -eq ($parts.Count - 1) } else { $false }
@@ -256,7 +268,7 @@ function ConvertFrom-KeyComboCanonical {
 function ConvertTo-KeyComboText {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
         [object]$InputObject,
         [ValidateSet('Canonical', 'Plus', 'Search', 'Kanata', 'PSReadLine', 'VSCode', 'Vim', 'Emacs', 'Helix', 'Nushell', 'All')]
         [string]$Style = 'Canonical',

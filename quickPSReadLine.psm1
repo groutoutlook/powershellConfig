@@ -2176,7 +2176,7 @@ function ConvertTo-KeyComboText {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true)]
+        [Parameter(Mandatory = $true, Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
         [object]$InputObject
     )
 
@@ -2228,6 +2228,17 @@ function ConvertTo-KeyComboText {
             $events = foreach ($chord in $chords) {
                 # Kanata logs can prefix an event with a timestamp, e.g. "120ms C-a".
                 $chord = $chord.Trim() -replace '^\[?\d+(?:\.\d+)?\s*(?:ms|s)\]?\s+', ''
+                # Accept `c.w` as a compact spelling of the existing `c-w`
+                # modifier-prefix notation.
+                $chord = (($chord -split '\s+' | ForEach-Object {
+                    $dotMatch = [regex]::Match($_, '^(?<modifier>[^.\s]+)\.(?<key>[^.\s]+)$')
+                    if ($dotMatch.Success -and $modifierAliases.ContainsKey($dotMatch.Groups['modifier'].Value.ToLowerInvariant())) {
+                        "$($dotMatch.Groups['modifier'].Value)-$($dotMatch.Groups['key'].Value)"
+                    }
+                    else {
+                        $_
+                    }
+                }) -join ' ')
                 $chord = $chord -replace '\s*\+\s*', '+'
                 $chordParts = @($chord -split '\s+' | Where-Object { $_ })
                 if ($chordParts.Count -gt 1 -and @($chordParts | Where-Object { $_ -match '[-+]' }).Count -eq $chordParts.Count) {
