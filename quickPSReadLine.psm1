@@ -2193,6 +2193,7 @@ function ConvertTo-KeyComboText {
                 $keyAliases[$alias.ToLowerInvariant()] = $canonical
             }
         }
+        $modifierPattern = @($modifierAliases.Keys | Sort-Object Length -Descending | ForEach-Object { [regex]::Escape($_) }) -join '|'
 
         $formatKeyInfo = {
             param([object]$Value)
@@ -2223,17 +2224,33 @@ function ConvertTo-KeyComboText {
         $formatText = {
             param([string]$Value)
 
-            $sequence = $Value.Trim() -replace '\s*->\s*', ',' -replace '\s*>\s*', ','
+            $sequence = $Value.Trim()
+            $punctuationPattern = "(?<prefix>(?:(?:$modifierPattern)\.)+)(?<key>[,.>;])"
+            $sequence = [regex]::Replace($sequence, $punctuationPattern, {
+                param($match)
+                $modifierChain = $match.Groups['prefix'].Value.TrimEnd('.') -replace '\.', '-'
+                $keyToken = switch ($match.Groups['key'].Value) {
+                    ',' { '__cq_key_comm__'; break }
+                    '.' { '__cq_key_dot__'; break }
+                    ';' { '__cq_key_scln__'; break }
+                    default { '__cq_key_gt__' }
+                }
+                "$modifierChain-$keyToken"
+            })
+            $sequence = $sequence -replace '\s*->\s*', ',' -replace '\s*>\s*', ','
             $chords = $sequence -split '\s*,\s*' | Where-Object { $_ -and $_.Trim() }
             $events = foreach ($chord in $chords) {
                 # Kanata logs can prefix an event with a timestamp, e.g. "120ms C-a".
                 $chord = $chord.Trim() -replace '^\[?\d+(?:\.\d+)?\s*(?:ms|s)\]?\s+', ''
-                # Accept `c.w` as a compact spelling of the existing `c-w`
-                # modifier-prefix notation.
+                # Accept `c.w` and chained forms such as `c.s.w` as compact
+                # spellings of the existing modifier-prefix notation.
                 $chord = (($chord -split '\s+' | ForEach-Object {
-                    $dotMatch = [regex]::Match($_, '^(?<modifier>[^.\s]+)\.(?<key>[^.\s]+)$')
-                    if ($dotMatch.Success -and $modifierAliases.ContainsKey($dotMatch.Groups['modifier'].Value.ToLowerInvariant())) {
-                        "$($dotMatch.Groups['modifier'].Value)-$($dotMatch.Groups['key'].Value)"
+                    $dotParts = @($_ -split '\.')
+                    $modifierParts = if ($dotParts.Count -gt 1) { @($dotParts[0..($dotParts.Count - 2)]) } else { @() }
+                    $isModifierChain = $modifierParts.Count -gt 0 -and
+                        @($modifierParts | Where-Object { $modifierAliases.ContainsKey($_.ToLowerInvariant()) }).Count -eq $modifierParts.Count
+                    if ($isModifierChain) {
+                        $dotParts -join '-'
                     }
                     else {
                         $_
@@ -2267,6 +2284,13 @@ function ConvertTo-KeyComboText {
                             'S' { $parts.Add('shift') }
                             'W' { $parts.Add('meta') }
                         }
+                    }
+                    $token = switch ($token) {
+                        '__cq_key_comm__' { 'comm'; break }
+                        '__cq_key_dot__' { 'dot'; break }
+                        '__cq_key_scln__' { 'scln'; break }
+                        '__cq_key_gt__' { '>'; break }
+                        default { $token }
                     }
                     $isModifierPosition = $tokenIndex -lt ($tokens.Count - 1)
                     $modifierName = $modifierAliases[$token.ToLowerInvariant()]

@@ -105,17 +105,36 @@ function Resolve-KeyComboCanonical {
 
     $maps = Get-KeyComboAliasMaps
     $prefixNames = @($maps.Modifiers.Keys | Sort-Object Length -Descending | ForEach-Object { [regex]::Escape($_) }) -join '|'
-    $sequence = $Value.Trim() -replace '\s*->\s*', ',' -replace '\s*>\s*', ','
+    $sequence = $Value.Trim()
+    # Protect punctuation used as the final key in dot chains before comma
+    # and greater-than sequence separators are normalized.
+    $punctuationPattern = "(?<prefix>(?:(?:$prefixNames)\.)+)(?<key>[,.>;])"
+    $sequence = [regex]::Replace($sequence, $punctuationPattern, {
+        param($match)
+        $modifierChain = $match.Groups['prefix'].Value.TrimEnd('.') -replace '\.', '-'
+        $keyToken = switch ($match.Groups['key'].Value) {
+            ',' { '__cq_key_comm__'; break }
+            '.' { '__cq_key_dot__'; break }
+            ';' { '__cq_key_scln__'; break }
+            default { '__cq_key_gt__' }
+        }
+        "$modifierChain-$keyToken"
+    })
+    $sequence = $sequence -replace '\s*->\s*', ',' -replace '\s*>\s*', ','
     $segments = $sequence -split '\s*,\s*' | Where-Object { $_ -and $_.Trim() }
     $events = foreach ($segment in $segments) {
         $segment = $segment.Trim() -replace '^\[?\d+(?:\.\d+)?\s*(?:ms|s)\]?\s+', ''
-        # Accept the compact dot form (`c.w`) as an alternative to Kanata's
-        # chained prefix form (`c-w`). Only rewrite known modifier prefixes,
-        # so decimal timestamps and literal period keys remain untouched.
+        # Accept compact dot forms (`c.w` and `c.s.w`) as alternatives to
+        # Kanata's chained prefix form (`c-w` and `c-s-w`). Only rewrite
+        # known modifier prefixes, so decimal timestamps and literal period
+        # keys remain untouched.
         $segment = (($segment -split '\s+' | ForEach-Object {
-            $dotMatch = [regex]::Match($_, '^(?<modifier>[^.\s]+)\.(?<key>[^.\s]+)$')
-            if ($dotMatch.Success -and $maps.Modifiers.ContainsKey($dotMatch.Groups['modifier'].Value.ToLowerInvariant())) {
-                "$($dotMatch.Groups['modifier'].Value)-$($dotMatch.Groups['key'].Value)"
+            $dotParts = @($_ -split '\.')
+            $modifierParts = if ($dotParts.Count -gt 1) { @($dotParts[0..($dotParts.Count - 2)]) } else { @() }
+            $isModifierChain = $modifierParts.Count -gt 0 -and
+                @($modifierParts | Where-Object { $maps.Modifiers.ContainsKey($_.ToLowerInvariant()) }).Count -eq $modifierParts.Count
+            if ($isModifierChain) {
+                $dotParts -join '-'
             }
             else {
                 $_
@@ -148,6 +167,14 @@ function Resolve-KeyComboCanonical {
                 if (-not $prefixName) { break }
                 $parts.Add($prefixName)
                 $token = $prefix.Groups['key'].Value
+            }
+
+            $token = switch ($token) {
+                '__cq_key_comm__' { 'comm'; break }
+                '__cq_key_dot__' { 'dot'; break }
+                '__cq_key_scln__' { 'scln'; break }
+                '__cq_key_gt__' { '>'; break }
+                default { $token }
             }
 
             $modifierName = $maps.Modifiers[$token.ToLowerInvariant()]
@@ -191,7 +218,7 @@ function ConvertFrom-KeyComboCanonical {
         Helix      = @{ ctrl = 'C'; rctrl = 'C'; meta = 'M'; rmeta = 'M'; alt = 'A'; ralt = 'A'; shift = 'S'; rshift = 'S' }
     }
     $keyNames = @{
-        PSReadLine = @{ esc = 'Escape'; ret = 'Enter'; bspc = 'Backspace'; spc = 'Spacebar'; pgup = 'PageUp'; pgdn = 'PageDown'; left = 'LeftArrow'; right = 'RightArrow'; up = 'UpArrow'; down = 'DownArrow'; kp0 = 'NumPad0'; kp1 = 'NumPad1'; kp2 = 'NumPad2'; kp3 = 'NumPad3'; kp4 = 'NumPad4'; kp5 = 'NumPad5'; kp6 = 'NumPad6'; kp7 = 'NumPad7'; kp8 = 'NumPad8'; kp9 = 'NumPad9' }
+        PSReadLine = @{ esc = 'Escape'; ret = 'Enter'; bspc = 'Backspace'; spc = 'Spacebar'; pgup = 'PageUp'; pgdn = 'PageDown'; left = 'LeftArrow'; right = 'RightArrow'; up = 'UpArrow'; down = 'DownArrow'; kp0 = 'NumPad0'; kp1 = 'NumPad1'; kp2 = 'NumPad2'; kp3 = 'NumPad3'; kp4 = 'NumPad4'; kp5 = 'NumPad5'; kp6 = 'NumPad6'; kp7 = 'NumPad7'; kp8 = 'NumPad8'; kp9 = 'NumPad9'; grv = '`'; min = '-'; eql = '='; lbrc = '['; rbrc = ']'; bksl = '\'; scln = ';'; apo = "'"; comm = ','; dot = '.'; slash = '/' }
         VSCode     = @{ esc = 'escape'; ret = 'enter'; bspc = 'backspace'; spc = 'space'; pgup = 'pageup'; pgdn = 'pagedown'; left = 'left'; right = 'right'; up = 'up'; down = 'down'; kp0 = 'num0'; kp1 = 'num1'; kp2 = 'num2'; kp3 = 'num3'; kp4 = 'num4'; kp5 = 'num5'; kp6 = 'num6'; kp7 = 'num7'; kp8 = 'num8'; kp9 = 'num9'; 'kp+' = 'numadd'; 'kp-' = 'numsub'; 'kp*' = 'multiply'; 'kp/' = 'divide'; 'kp.' = 'decimal' }
         Vim        = @{ esc = '<Esc>'; ret = '<CR>'; tab = '<Tab>'; bspc = '<BS>'; del = '<Del>'; ins = '<Insert>'; spc = '<Space>'; pgup = '<PageUp>'; pgdn = '<PageDown>'; left = '<Left>'; right = '<Right>'; up = '<Up>'; down = '<Down>'; home = '<Home>'; end = '<End>' }
         Emacs      = @{ esc = 'ESC'; ret = 'RET'; tab = 'TAB'; bspc = 'DEL'; del = 'DELETE'; spc = 'SPC'; left = '<left>'; right = '<right>'; up = '<up>'; down = '<down>' }
@@ -227,7 +254,8 @@ function ConvertFrom-KeyComboCanonical {
             (@($modifiers) + $key) -join '+'
         }
         elseif ($Style -eq 'Search') {
-            ((@($modifiers) + $key) -join '+') -replace '\+', '\+'
+            $searchKey = if ($keyNames.PSReadLine.ContainsKey($key)) { $keyNames.PSReadLine[$key] } else { $key }
+            [regex]::Escape((@($modifiers) + $searchKey) -join '+')
         }
         elseif ($Style -eq 'Kanata') {
             (@($modifiers | ForEach-Object { "$($modifierNames.Kanata[$_])-" }) -join '') + $key
