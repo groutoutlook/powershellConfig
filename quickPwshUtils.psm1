@@ -379,6 +379,7 @@ function quickSymLink($path = (Get-Clipboard)) {
 }
 
 function Get-FileClipboardPath {
+    # FileDrop first; else path text (abs/rel, one per line). STA via powershell.exe if needed.
     [CmdletBinding()]
     param()
 
@@ -386,49 +387,71 @@ function Get-FileClipboardPath {
         throw 'Get-FileClipboardPath is only supported on Windows.'
     }
 
-    $readFileDropList = {
+    $read = {
         Add-Type -AssemblyName System.Windows.Forms
-
-        if (-not [System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
-            return @()
+        [pscustomobject]@{
+            FileDrop = @(if ([Windows.Forms.Clipboard]::ContainsFileDropList()) {
+                    [string[]][Windows.Forms.Clipboard]::GetFileDropList()
+                })
+            Text     = if ([Windows.Forms.Clipboard]::ContainsText()) { [Windows.Forms.Clipboard]::GetText() }
         }
-
-        [string[]][System.Windows.Forms.Clipboard]::GetFileDropList()
     }
 
-    $isSta = [Threading.Thread]::CurrentThread.GetApartmentState() -eq [Threading.ApartmentState]::STA
-    if ($isSta) {
-        $paths = @(& $readFileDropList)
+    if ([Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA') {
+        $clip = & $read
     }
     else {
-        if (-not (Get-Command powershell.exe -ErrorAction SilentlyContinue)) {
-            throw 'Reading the Windows file clipboard requires Windows PowerShell (powershell.exe) in PATH.'
+        if (-not (Get-Command powershell.exe -EA SilentlyContinue)) {
+            throw 'Reading the Windows file clipboard requires powershell.exe in PATH.'
         }
-
-        $helper = @'
+        $clip = & powershell.exe -NoLogo -NoProfile -NonInteractive -STA -Command @'
 Add-Type -AssemblyName System.Windows.Forms
-if (-not [System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
-    exit 2
+[pscustomobject]@{
+  FileDrop = @(if ([Windows.Forms.Clipboard]::ContainsFileDropList()) { [string[]][Windows.Forms.Clipboard]::GetFileDropList() })
+  Text = if ([Windows.Forms.Clipboard]::ContainsText()) { [Windows.Forms.Clipboard]::GetText() }
 }
-[string[]][System.Windows.Forms.Clipboard]::GetFileDropList()
 '@
-        $paths = @(& powershell.exe -NoLogo -NoProfile -NonInteractive -STA -Command $helper)
-        $exitCode = $LASTEXITCODE
+        if ($LASTEXITCODE) { throw "Could not read the Windows file clipboard (exit code $LASTEXITCODE)." }
     }
 
-    if (-not $isSta -and $exitCode -eq 2) {
-        throw 'The clipboard does not contain files or folders copied from Explorer.'
+    $resolve = {
+        param([string[]]$Items)
+        try {
+            $out = foreach ($item in $Items) {
+                if ([string]::IsNullOrWhiteSpace($item) -or $item -match '\x00') { return @() }
+                $item = $item.Trim().Trim('"')
+                $hit = @(Resolve-Path -LiteralPath $item -EA SilentlyContinue)
+                if (-not $hit) { $hit = @(Resolve-Path -Path $item -EA Stop) }
+                foreach ($p in $hit) {
+                    if ($p.Provider.Name -ne 'FileSystem') { return @() }
+                    [IO.Path]::GetFullPath($p.ProviderPath)
+                }
+            }
+            @($out | Select-Object -Unique)
+        }
+        catch { @() }
     }
 
-    if (-not $isSta -and $exitCode -and $exitCode -ne 0) {
-        throw "Could not read the Windows file clipboard (exit code $exitCode)."
+    $drop = @($clip.FileDrop | Where-Object { $_ })
+    if ($drop) {
+        $paths = & $resolve $drop
+        if ($paths) { return $paths }
+        throw "Clipboard file-drop entries do not resolve on disk: $($drop -join ', ')"
     }
 
-    if ($paths.Count -eq 0) {
-        throw 'The clipboard file-drop list is empty.'
+    if ($clip.Text) {
+        $candidates = @(
+            $clip.Text -split '\r?\n' |
+                ForEach-Object { $_.Trim().Trim('"') } |
+                Where-Object { $_ }
+        )
+        if ($candidates) {
+            $paths = & $resolve $candidates
+            if ($paths.Count -eq $candidates.Count) { return $paths }
+        }
     }
 
-    return $paths
+    throw 'Clipboard has neither Explorer file handles nor resolvable path text.'
 }
 
 function Set-FileClipboard {
@@ -521,16 +544,7 @@ foreach (`$value in `$values) { [void]`$fileDropList.Add([string]`$value) }
 }
 
 function Copy-FileClipboard {
-    <#
-    .SYNOPSIS
-        Copy files and folders from the Windows Explorer clipboard.
-
-    .DESCRIPTION
-        Reads the file-drop list created by Explorer (Ctrl+C/Ctrl+X) and copies
-        it into the current directory or the explicitly supplied destination.
-        Existing targets are rejected unless -Force is specified. Moving is
-        opt-in with -Move so a cut clipboard cannot remove a source by accident.
-    #>
+    # Copy clipboard sources (FileDrop or path text) into -Destination (cwd by default).
     [CmdletBinding(SupportsShouldProcess = $true)]
     param(
         [Parameter(Position = 0)]
