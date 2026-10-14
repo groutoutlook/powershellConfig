@@ -501,9 +501,10 @@ function xcb {
     $source = if ($ArgumentList.Count) { $ArgumentList[0] } else { $null }
     $line = $null
     $column = $null
+    $range = $null
     if ($ArgumentList.Count -gt 1) { $line = $ArgumentList[1] }
     if ($ArgumentList.Count -gt 2) { $column = $ArgumentList[2] }
-    if ($ArgumentList.Count -gt 3) { throw 'Usage: hxc [path[:line[:column]]] [line] [column]' }
+    if ($ArgumentList.Count -gt 3) { throw 'Usage: hxc [path[:line[:column]] or path:startLine:startColumn-endLine:endColumn] [line] [column]' }
 
     if ($source -and $source -match '^\d+$') {
         if ($line) { $column = $line }
@@ -511,14 +512,20 @@ function xcb {
         $source = $null
     }
 
-    if ($line -and $line -notmatch '^\d+$') { throw 'Line must be a positive integer.' }
-    if ($column -and $column -notmatch '^\d+$') { throw 'Column must be a positive integer.' }
-    if ($column -and -not $line) { throw 'Specify a line number when specifying a column.' }
-
     # A location may be passed as path:line or path:line:column. The greedy
     # path group preserves Windows drive letters and colons in file names.
+    $rangePattern = '^(?<path>.+):(?<startLine>\d+):(?<startColumn>\d+)-(?<endLine>\d+):(?<endColumn>\d+)$'
     $locationPattern = '^(?<path>.+):(?<line>\d+)(?::(?<column>\d+))?$'
-    if ($source -and $source -match $locationPattern -and (Test-Path -LiteralPath $Matches.path)) {
+    if ($source -and $source -match $rangePattern -and (Test-Path -LiteralPath $Matches.path)) {
+        $range = [pscustomobject]@{
+            StartLine   = [int]$Matches.startLine
+            StartColumn = [int]$Matches.startColumn
+            EndLine     = [int]$Matches.endLine
+            EndColumn   = [int]$Matches.endColumn
+        }
+        $source = $Matches.path
+    }
+    elseif ($source -and $source -match $locationPattern -and (Test-Path -LiteralPath $Matches.path)) {
         if (-not $line) { $line = $Matches.line }
         if (-not $column) { $column = $Matches.column }
         $source = $Matches.path
@@ -545,7 +552,16 @@ function xcb {
         $source = [string](Get-Clipboard -Raw)
     }
 
-    if ($source -match $locationPattern -and (Test-Path -LiteralPath $Matches.path)) {
+    if (-not $range -and $source -match $rangePattern -and (Test-Path -LiteralPath $Matches.path)) {
+        $range = [pscustomobject]@{
+            StartLine   = [int]$Matches.startLine
+            StartColumn = [int]$Matches.startColumn
+            EndLine     = [int]$Matches.endLine
+            EndColumn   = [int]$Matches.endColumn
+        }
+        $source = $Matches.path
+    }
+    elseif (-not $range -and $source -match $locationPattern -and (Test-Path -LiteralPath $Matches.path)) {
         if (-not $line) { $line = $Matches.line }
         if (-not $column) { $column = $Matches.column }
         $source = $Matches.path
@@ -573,6 +589,47 @@ function xcb {
     if ($item.PSProvider.Name -ne 'FileSystem') {
         throw 'The clipboard must contain a filesystem path.'
     }
+    if ($range) {
+        $startTarget = "$($item.FullName):$($range.StartLine):$($range.StartColumn)"
+        $endTarget = "$($item.FullName):$($range.EndLine):$($range.EndColumn)"
+        $hxCommand = Get-Command -Name hx -ErrorAction Stop
+        $hxPath = $hxCommand.Source
+        if ($hxCommand.CommandType -eq 'ExternalScript') {
+            $shim = Get-Content -LiteralPath $hxCommand.Source -Raw -ErrorAction Stop
+            $pathMatch = [regex]::Match($shim, '(?m)^\s*\$\w+\s*=\s*[''\"](?<path>[^''\"]+)[''\"]')
+            if (-not $pathMatch.Success) { throw "Could not resolve the Helix executable from '$($hxCommand.Source)'." }
+            $hxPath = $pathMatch.Groups['path'].Value
+        }
+        if (-not (Test-Path -LiteralPath $hxPath -PathType Leaf)) {
+            throw "Helix executable was not found: $hxPath"
+        }
+
+        if ($IsWindows) {
+            $startInfo = [Diagnostics.ProcessStartInfo]::new()
+            $startInfo.FileName = $hxPath
+            $startInfo.UseShellExecute = $false
+            [void]$startInfo.ArgumentList.Add($startTarget)
+            [void]$startInfo.ArgumentList.Add($endTarget)
+            $process = [Diagnostics.Process]::Start($startInfo)
+            try {
+                Start-Sleep -Milliseconds 500
+                Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+                [Windows.Forms.SendKeys]::SendWait('%-')
+                $process.WaitForExit()
+            }
+            finally {
+                $process.Dispose()
+            }
+        }
+        else {
+            # TODO: add a native Unix PTY path. PowerShell itself is the host
+            # shell here; Python is intentionally not required just to send
+            # Helix its Alt+- merge-selections input.
+            throw 'Range selection on Unix is not wired yet; use hx with the two locations or merge them in Helix with Alt+-. '
+        }
+        return
+    }
+
     $target = $item.FullName
     if ($line) { $target += ":$line" }
     if ($column) { $target += ":$column" }
