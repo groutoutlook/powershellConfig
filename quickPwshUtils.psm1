@@ -907,8 +907,14 @@ Set-Alias -Name mcm -Value Measure-Command
 Set-Alias -Name rmrf -Value Remove-FullForce 
 Set-Alias -Name cprf -Value Copy-FullForce
 Set-Alias -Name cpcb -Value Copy-FileClipboard
-Set-Alias -Name cpdrop -Value Copy-FileClipboard
-Set-Alias -Name gti -Value Get-TypeInfo
+# Set-Alias -Name cpdrop -Value Copy-FileClipboard
+# Set-Alias -Name gti -Value Get-TypeInfo
 Set-Alias -Name gpd -Value Get-ParameterDefault
 Set-Alias -Name gcbf -Value Get-FileClipboardPath
 # Export-ModuleMember -Function * -Alias *
+# 
+Set-Alias -Name cfj -Value ConvertFrom-Json
+Set-Alias -Name ctj -Value ConvertTo-Json
+
+
+

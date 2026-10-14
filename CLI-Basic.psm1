@@ -525,7 +525,16 @@ function rei {
 
 function rlo {
     # previously rlobs but I'm that lazy.
-    just --justfile ~/hw/obs/justfile -d ~/hw/obs run
+    param(
+        [switch]$Force
+    )
+
+    if ($Force) {
+        just --justfile ~/hw/obs/justfile -d ~/hw/obs run force=true
+    }
+    else {
+        just --justfile ~/hw/obs/justfile -d ~/hw/obs run
+    }
 }
 
 Set-Alias -Name qrlo -Value rlo
