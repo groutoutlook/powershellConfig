@@ -1,5 +1,19 @@
 # PowerShell Settings
 
+## Open a clipboard path in Helix
+
+Copy an existing file or directory path, then run:
+
+```powershell
+hxc            # open the clipboard path
+hxc 42         # open at line 42
+hxc 42 7       # open at line 42, column 7
+```
+
+`hxcb`, `hxb`, and the original `xcb` command work the same way. Paths copied
+from Explorer or as text, including paths with spaces, are supported. Helix
+(`hx`) must be available on PATH.
+
 ## Key-combo search
 
 `quick.query.psm1` translates Kanata-style keybindings for common editors and shells.

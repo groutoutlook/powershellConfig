@@ -4,7 +4,7 @@
     ModuleVersion = '1.0.0'
     PowerShellVersion = '7.0'
     FunctionsToExport = @('clearScrn', 'Restart-ForceApp', 'Show-Window', 'Send-MpvIpcCommand', 'Send-Key', 'mpn', 'mpns', 'buildIndex', 'filterURI', 'Restart-Job', 'Format-Hyperlink', 'isLink', 'Set-LocationSymLink', 'Set-LocationSymLinkRoot', 'Remove-FullForce', 'Copy-FullForce', 'quickSymLink', 'Get-FileClipboardPath', 'Set-FileClipboard', 'Copy-FileClipboard', 'swap_prompt', 'Convert-PathToOsc8', 'Resolve-ClipboardPath', 'Invoke-ShimClipboardPath', 'Get-TypeInfo', 'Get-ParameterDefault', 'Format-ParameterDefaultValue')
-    AliasesToExport = @('cls', 'clear', 'mpcn', 'shcb', 'rvcb', 'cdsl', 'cdslr', 'rsjb', 'spa', 'jpa', 'mcm', 'rmrf', 'cprf', 'cpcb', 'cpdrop', 'gti', 'gpd', 'gcbf')
+    AliasesToExport = @('cls', 'clear', 'mpcn', 'shcb', 'rvcb', 'cdsl', 'cdslr', 'rsjb', 'spa', 'jpa', 'mcm', 'rmrf', 'cprf', 'cpcb', 'gpd', 'gcbf', 'cfj', 'ctj')
     CmdletsToExport = @()
     VariablesToExport = @()
 }

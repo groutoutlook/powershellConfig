@@ -11,6 +11,7 @@ foreach ($name in @('CLI-Basic', 'quickVimAction', 'quickPwshUtils', 'CLI-Extra'
     Assert (-not (Get-Module $name)) "$name was eagerly imported"
 }
 Assert ([bool](Get-Command :r -CommandType Function)) ':r is unavailable'
+Assert ((Get-Alias hxc).Definition -eq 'xcb') 'hxc alias is missing'
 Assert ((Get-Alias Track).Definition -eq 'Add-NextTrack') 'Track alias is missing'
 Assert ((Get-Alias p7mod).Definition -eq 'Import-MoreModule') 'p7mod alias is missing'
 Assert ((Get-Alias p7mod).Options -notmatch 'AllScope') 'p7mod has incompatible alias flags'

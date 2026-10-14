@@ -490,6 +490,98 @@ function ccb {
     code --goto "$finalArg"
 }
 
+# Open the clipboard path in Helix, optionally at a line and column.
+function xcb {
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
+        [string[]]$ArgumentList
+    )
+
+    $source = if ($ArgumentList.Count) { $ArgumentList[0] } else { $null }
+    $line = $null
+    $column = $null
+    if ($ArgumentList.Count -gt 1) { $line = $ArgumentList[1] }
+    if ($ArgumentList.Count -gt 2) { $column = $ArgumentList[2] }
+    if ($ArgumentList.Count -gt 3) { throw 'Usage: hxc [path[:line[:column]]] [line] [column]' }
+
+    if ($source -and $source -match '^\d+$') {
+        if ($line) { $column = $line }
+        $line = $source
+        $source = $null
+    }
+
+    if ($line -and $line -notmatch '^\d+$') { throw 'Line must be a positive integer.' }
+    if ($column -and $column -notmatch '^\d+$') { throw 'Column must be a positive integer.' }
+    if ($column -and -not $line) { throw 'Specify a line number when specifying a column.' }
+
+    # A location may be passed as path:line or path:line:column. The greedy
+    # path group preserves Windows drive letters and colons in file names.
+    $locationPattern = '^(?<path>.+):(?<line>\d+)(?::(?<column>\d+))?$'
+    if ($source -and $source -match $locationPattern -and (Test-Path -LiteralPath $Matches.path)) {
+        if (-not $line) { $line = $Matches.line }
+        if (-not $column) { $column = $Matches.column }
+        $source = $Matches.path
+    }
+
+    $clipboardPaths = @()
+    $fileClipboardCommand = Get-Command -Name Get-FileClipboardPath -ErrorAction SilentlyContinue
+    if ($fileClipboardCommand) {
+        try {
+            $clipboardPaths = @(& $fileClipboardCommand)
+        }
+        catch {
+            $clipboardPaths = @()
+        }
+    }
+
+    if ($clipboardPaths.Count -gt 1) {
+        throw 'Copy a single file or directory path before opening it in Helix.'
+    }
+    if (-not $source -and $clipboardPaths.Count -eq 1) {
+        $source = [string]$clipboardPaths[0]
+    }
+    elseif (-not $source) {
+        $source = [string](Get-Clipboard -Raw)
+    }
+
+    if ($source -match $locationPattern -and (Test-Path -LiteralPath $Matches.path)) {
+        if (-not $line) { $line = $Matches.line }
+        if (-not $column) { $column = $Matches.column }
+        $source = $Matches.path
+    }
+    else {
+        $source = $source.Trim()
+        if ($source -match '^"(.*)"$' -or $source -match "^'(.*)'$") {
+            $source = $Matches[1]
+        }
+    }
+    $clipboardPath = $source
+    if (-not $source) {
+        $clipboardPath = [string](Get-Clipboard -Raw)
+        $clipboardPath = $clipboardPath.Trim()
+        if ($clipboardPath -match '^"(.*)"$' -or $clipboardPath -match "^'(.*)'$") {
+            $clipboardPath = $Matches[1]
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($clipboardPath) -or -not (Test-Path -LiteralPath $clipboardPath)) {
+        throw 'The clipboard does not contain an existing filesystem path that PowerShell can read.'
+    }
+
+    $item = Get-Item -LiteralPath $clipboardPath -Force -ErrorAction Stop
+    if ($item.PSProvider.Name -ne 'FileSystem') {
+        throw 'The clipboard must contain a filesystem path.'
+    }
+    $target = $item.FullName
+    if ($line) { $target += ":$line" }
+    if ($column) { $target += ":$column" }
+    hx $target
+}
+Set-Alias -Name hxcb -Value xcb
+Set-Alias -Name hxb -Value xcb
+Set-Alias -Name hxc -Value xcb
+
 function rb {
     just build ($args.Length ? "$($args -join ' ')" : $null)
 }

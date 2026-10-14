@@ -23,6 +23,9 @@ foreach ($entry in @(
     @{ Name = 'zoi'; Value = 'zqi'; Options = 'None' }
     @{ Name = 'cdb'; Value = 'zb'; Options = 'None' }
     @{ Name = 'rgr'; Value = 'scooter'; Options = 'None' }
+    @{ Name = 'hxcb'; Value = 'xcb'; Options = 'None' }
+    @{ Name = 'hxb'; Value = 'xcb'; Options = 'None' }
+    @{ Name = 'hxc'; Value = 'xcb'; Options = 'None' }
     @{ Name = 'qrlo'; Value = 'rlo'; Options = 'None' }
     @{ Name = 'r'; Value = 'just'; Options = 'AllScope' }
     @{ Name = 'top'; Value = 'btm'; Options = 'None' }
@@ -60,10 +63,10 @@ foreach ($entry in @(
     @{ Name = 'rmrf'; Value = 'Remove-FullForce'; Options = 'None' }
     @{ Name = 'cprf'; Value = 'Copy-FullForce'; Options = 'None' }
     @{ Name = 'cpcb'; Value = 'Copy-FileClipboard'; Options = 'None' }
-    @{ Name = 'cpdrop'; Value = 'Copy-FileClipboard'; Options = 'None' }
-    @{ Name = 'gti'; Value = 'Get-TypeInfo'; Options = 'None' }
     @{ Name = 'gpd'; Value = 'Get-ParameterDefault'; Options = 'None' }
     @{ Name = 'gcbf'; Value = 'Get-FileClipboardPath'; Options = 'None' }
+    @{ Name = 'cfj'; Value = 'ConvertFrom-Json'; Options = 'None' }
+    @{ Name = 'ctj'; Value = 'ConvertTo-Json'; Options = 'None' }
     @{ Name = 'p7mod'; Value = 'Import-MoreModule'; Options = 'None' }
     @{ Name = ':mo'; Value = 'Restart-ModuleList'; Options = 'None' }
     @{ Name = ':o'; Value = ':obsidian'; Options = 'None' }
