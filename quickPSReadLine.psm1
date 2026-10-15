@@ -1247,6 +1247,17 @@ $SquareBracketsParameter = @{
     }
 }
 
+$BacktickParameter = @{
+    # PSReadLine identifies Ctrl+shift+`
+    Key              = 'Ctrl+Shift+Oem3'
+    BriefDescription = 'backtick the selection or nearest token'
+    LongDescription  = 'Wraps selected text in backticks; if no selection, wraps the token nearest to the cursor. Cursor is placed after the closing backtick.'
+    ScriptBlock      = {
+        param($key, $arg)
+        Invoke-PSReadLineWrapToken -Open '`' -Close '`'
+    }
+}
+
 $DoubleQuotesParameter = @{
     Key              = "Ctrl+'"
     BriefDescription = 'parentheses the selection or nearest token'
@@ -1669,6 +1680,7 @@ $HandlerParameters = @(
     , $ParenthesesParameter
     , $ParenthesesAllParameter
     , $SquareBracketsParameter
+    , $BacktickParameter
     , $DoubleQuotesParameter
     , $DoubleQuotesNestedBracketParameter
     , $WrapPipeParameter
