@@ -672,7 +672,7 @@ function Resolve-ClipboardPath ($path = (gcb)) {
 
         if (Test-Path -LiteralPath $resolvedPath -PathType Leaf) {
             $extension = [System.IO.Path]::GetExtension($resolvedPath).ToLowerInvariant()
-            if (@('.7z', '.bz2', '.cab', '.csv', '.doc', '.docx', '.gz', '.iso', '.jar', '.msi', '.ods', '.odt', '.pdf', '.ppt', '.pptx', '.rar', '.tar', '.xls', '.xlsm', '.xlsx', '.zip') -contains $extension) {
+            if (@('.7z', '.bz2', '.cab', '.csv', '.doc', '.docx', '.gz', '.iso', '.jar', '.msi', '.ods', '.odt', '.pdf', '.ppt', '.pptx', '.rar', '.tar', '.xls', '.xlsm', '.xlsx', '.zip',".gbr",".drl") -contains $extension) {
                 $answer = Read-Host "'$extension' looks like a file you probably want copied like Explorer. Use Set-FileClipboard? [Y/n]"
                 if ($answer -notmatch '^(n|no)$') {
                     if (Get-Command -Name 'Set-FileClipboard' -ErrorAction SilentlyContinue) {

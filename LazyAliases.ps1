@@ -18,6 +18,7 @@ foreach ($commandName in @(':q', ':a', ':r', ':m', ':v', ':vl', ':vs', ':e', ':s
 
 foreach ($entry in @(
     @{ Name = 'zz'; Value = 'yz'; Options = 'None' }
+    @{ Name = 'vm'; Value = 'yz'; Options = 'None' }
     @{ Name = 'msmt'; Value = 'Invoke-KeyMouse'; Options = 'None' }
     @{ Name = 'zo'; Value = 'zq'; Options = 'None' }
     @{ Name = 'zoi'; Value = 'zqi'; Options = 'None' }
@@ -35,6 +36,7 @@ foreach ($entry in @(
     @{ Name = 'nc'; Value = 'ncat'; Options = 'AllScope' }
     @{ Name = 'Lyric'; Value = 'Add-LyricFile'; Options = 'None' }
     @{ Name = 'Track'; Value = 'Add-NextTrack'; Options = 'None' }
+    @{ Name = 'pwc'; Value = 'Set-PathClipboard'; Options = 'None' }
     @{ Name = ':cp'; Value = 'Import-Completion'; Options = 'None' }
     @{ Name = 'jmpv'; Value = 'Get-Playlistmpv'; Options = 'None' }
     @{ Name = 'andDev'; Value = 'androidDevEnv'; Options = 'None' }

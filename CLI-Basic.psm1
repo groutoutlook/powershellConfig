@@ -291,10 +291,11 @@ function igj() {
     & ig @igArgs
 }
 
-# INFO: yazi quick call.
+# INFO: yazi/vifm quick call.
 function yz {
     $tmp = [System.IO.Path]::GetTempFileName()
-    yazi $args --cwd-file="$tmp"
+    yazi $args --cwd-file "$tmp"
+    # vifm $args
     $cwd = Get-Content -Path $tmp -Encoding UTF8
     if (-not [String]::IsNullOrEmpty($cwd) -and $cwd -ne $PWD.Path) {
         Set-Location -LiteralPath ([System.IO.Path]::GetFullPath($cwd))
@@ -302,6 +303,7 @@ function yz {
     Remove-Item -Path $tmp
 }
 Set-Alias -Name zz -Value yz
+Set-Alias -Name vm -Value yz
 
 function Invoke-SudoPwsh {
     [CmdletBinding()]
@@ -1151,3 +1153,28 @@ function b {
         bat @RemainingArgs
     }
 }
+
+function Tee-Host {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, Position = 0)]
+        [scriptblock]$View,
+        [Parameter(ValueFromPipeline = $true)]
+        [AllowNull()]
+        [object]$InputObject
+    )
+
+    process {
+        $hostText = @($inputObject | ForEach-Object -Process $View)
+        if ($null -ne $hostText) {
+            Write-Host ($hostText -join [Environment]::NewLine)
+        }
+        $inputObject
+    }
+}
+
+function Set-PathClipboard{
+    pwd | tee-host {"set-clipboard to $(Convert-PathToOsc8 $_)"}| scb
+}
+
+Set-Alias pwc Set-PathClipboard
